@@ -1,35 +1,38 @@
-import jinja2
-from fastapi import FastAPI, Request
-from workers import WorkerEntrypoint
+# src/worker.py
+from workers import WorkerEntrypoint, Request
+import asgi  # Cloudflare's ASGI adapter
+from fastapi import FastAPI
 
-environment = jinja2.Environment()
-template = environment.from_string("Hello, {{ name }}!")
-
-
-class Default(WorkerEntrypoint):
-    async def fetch(self, request):
-        import asgi
-
-        return await asgi.fetch(app, request.js_object, self.env)
-
-
-app = FastAPI()
-
+app = FastAPI(
+    title="Hello Python Worker",
+    # keep docs on; if you still hit CPU limit, set docs_url=None, redoc_url=None
+)
 
 @app.get("/")
 async def root():
-    message = "This is an example of FastAPI with Jinja2 - go to /hi/<name> to see a template rendered"
-    return {"message": message}
+    return {"message": "hello from FastAPI on Python Workers"}
 
+# Lazy Jinja import so it doesn't run at module import time
+_jinja_env = None
+def get_jinja_env():
+    global _jinja_env
+    if _jinja_env is None:
+        from jinja2 import Environment
+        _jinja_env = Environment()
+    return _jinja_env
 
 @app.get("/hi/{name}")
 async def say_hi(name: str):
-    message = template.render(name=name)
-    return {"message": message}
-
+    tmpl = get_jinja_env().from_string("Hello, {{ name }}!")
+    return {"message": tmpl.render(name=name)}
 
 @app.get("/env")
 async def env(req: Request):
-    env = req.scope["env"]
-    message = f"Here is an example of getting an environment variable: {env.MESSAGE}"
-    return {"message": message}
+    # asgi.fetch() will inject `env` into ASGI scope
+    cf_env = req.scope["env"]
+    return {"message": f"env MESSAGE: {cf_env.MESSAGE}"}
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request: Request):
+        # IMPORTANT: pass `request`, not request.js_object
+        return await asgi.fetch(app, request, self.env)

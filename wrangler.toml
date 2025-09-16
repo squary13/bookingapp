@@ -1,7 +1,8 @@
+# wrangler.toml
 name = "booking-worker-py-be"
 main = "src/worker.py"
-compatibility_flags = ["python_workers"]
 compatibility_date = "2025-08-14"
+compatibility_flags = ["python_workers"]
 
 [vars]
 MESSAGE = "CUSTOM_ENV_VARIABLE_MESSAGE"
