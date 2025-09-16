@@ -1,13 +1,7 @@
-# pyproject.toml
 [project]
-name = "fastapi-worker"
-version = "0.1.0"
-description = "Python fastapi example"
+name = "python-worker-hello"
+version = "0.0.1"
 requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.116",
-    "jinja2>=3.1",
-]
 
 [dependency-groups]
-dev = ["workers-py"]
+dev = ["workers-py"]  # optional for local dev only
