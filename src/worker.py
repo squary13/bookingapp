@@ -101,8 +101,8 @@ _SWAGGER_HTML = """<!DOCTYPE html>
 # Example API endpoints
 # -----------------------
 
-@route("GET", "/health", summary="Health check", tags=["meta"])
-async def health(_req: Request):
+@route("GET", "/healthCHECK", summary="Health check", tags=["meta"])
+async def healthCHECK(_req: Request):
     return {"ok": True}
 
 @route("GET", "/hello", summary="Say hello", tags=["demo"])
