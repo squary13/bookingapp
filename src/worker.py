@@ -1,12 +1,21 @@
-from workers import WorkerEntrypoint, Request, Response
+from workers import WorkerEntrypoint, Request, Response  # type: ignore
 import json, re
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 # -------------------------------
 # Minimal router + OpenAPI builder
 # -------------------------------
 
 _routes = []  # registry of (method, path, pattern, param_names, handler, meta)
+
+# Safe URL helpers (avoid relying on Request.url attributes that may differ)
+def _split_url(request: Request):
+    # Convert to string then split; works even if request.url lacks .pathname/.search
+    u = str(request.url)
+    parts = urlsplit(u)
+    path = parts.path or "/"
+    query = parts.query or ""
+    return path, query
 
 def route(method: str, path: str, *, summary: str = "", request_body: dict | None = None, responses: dict | None = None, tags: list[str] | None = None):
     """
@@ -36,7 +45,11 @@ def _match(method: str, pathname: str):
 
 def _parse_json_body(req: Request):
     try:
-        return json.loads(req.data or b"")
+        # Some runtimes expose .data (bytes). If not, fall back to empty object.
+        raw = getattr(req, "data", None)
+        if raw is None:
+            return None
+        return json.loads(raw or b"")
     except Exception:
         return None
 
@@ -94,8 +107,8 @@ async def health(_req: Request):
 
 @route("GET", "/hello", summary="Say hello", tags=["demo"])
 async def hello(req: Request):
-    # query: /hello?name=Sergejs
-    q = parse_qs(req.url.search[1:] if req.url.search else "")
+    path, query = _split_url(req)
+    q = parse_qs(query)
     name = q.get("name", ["world"])[0]
     return {"message": f"Hello, {name}!"}
 
@@ -105,7 +118,7 @@ async def get_user(_req: Request, id: str):
     # demo only; no DB here yet
     if id == "1":
         return {"id": 1, "email": "demo@example.com", "name": "Demo User"}
-    return Response.json({"error": "Not found"}, status=404)
+    return Response(json.dumps({"error": "Not found"}), status=404, headers={"content-type": "application/json; charset=utf-8"})
 
 @route("POST", "/users", summary="Create user", tags=["users"],
        request_body={"type": "object", "required": ["email", "name"], "properties": {
@@ -118,23 +131,23 @@ async def create_user(req: Request):
     email = data.get("email")
     name = data.get("name")
     if not email or not name:
-        return Response.json({"error": "email and name are required"}, status=400)
+        return Response(json.dumps({"error": "email and name are required"}), status=400, headers={"content-type": "application/json; charset=utf-8"})
     # demo only; would INSERT into D1 here
-    return Response.json({"id": 123, "email": email, "name": name}, status=201)
+    return Response(json.dumps({"id": 123, "email": email, "name": name}), status=201, headers={"content-type": "application/json; charset=utf-8"})
 
 # -------------
 # Worker entry
 # -------------
 class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
-        path = request.url.pathname
+        path, _query = _split_url(request)
         method = request.method
 
         # cheap routes first (no registry scan)
         if path == "/":
-            return Response.json({"hello": "world"})
+            return Response(json.dumps({"hello": "world"}), headers={"content-type": "application/json; charset=utf-8"})
         if path == "/openapi.json":
-            return Response.json(_openapi())
+            return Response(json.dumps(_openapi()), headers={"content-type": "application/json; charset=utf-8"})
         if path == "/docs":
             return Response(_SWAGGER_HTML, headers={"content-type": "text/html; charset=utf-8"})
 
@@ -150,4 +163,4 @@ class Default(WorkerEntrypoint):
         if isinstance(result, Response):
             return result
         # Otherwise JSON-ify
-        return Response.json(result)
+        return Response(json.dumps(result), headers={"content-type": "application/json; charset=utf-8"})
