@@ -10,3 +10,8 @@ MESSAGE = "CUSTOM_ENV_VARIABLE_MESSAGE"
 
 [observability.logs]
 enabled = true
+
+[[d1_databases]]
+binding = "DB"                  
+database_name = "booking-db"     
+database_id = "f0017ffb-931e-4ca2-ae2f-8b4cf29693b9"
