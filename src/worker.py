@@ -11,9 +11,7 @@ class Default(WorkerEntrypoint):
         method = request.method
 
         # super-cheap root
-        if path == "/":
-            return respond_json({"hello": "world"})
-        if path == "/docs":
+        if path == "/docs" or path == "/":
             return swagger_page()
         if path == "/openapi.json":
             return openapi_json()
