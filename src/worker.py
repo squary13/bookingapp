@@ -1,35 +1,35 @@
-from workers import WorkerEntrypoint, Response
-import asgi  # Cloudflare's ASGI adapter
+import jinja2
+from fastapi import FastAPI, Request
+from workers import WorkerEntrypoint
 
-_app = None  # lazy-initialized FastAPI app
+environment = jinja2.Environment()
+template = environment.from_string("Hello, {{ name }}!")
 
-def _build_app():
-    # Lazy import to avoid startup CPU on cold boot
-    from fastapi import FastAPI
-
-    app = FastAPI(
-        title="Booking API (Python Workers)",
-        version="0.0.1",
-        # If you hit startup CPU errors again, temporarily set these to None:
-        docs_url=None, redoc_url=None, openapi_url=None
-    )
-
-    @app.get("/health", tags=["meta"])
-    async def health():
-        return {"ok": True}
-
-    return app
 
 class Default(WorkerEntrypoint):
-    async def fetch(self, request, env):
-        # cheap root route (no FastAPI import)
-        if request.url.pathname == "/":
-            return Response.json({"hello": "world"})
+    async def fetch(self, request):
+        import asgi
 
-        # lazily create FastAPI app only when needed
-        global _app
-        if _app is None:
-            _app = _build_app()
+        return await asgi.fetch(app, request.js_object, self.env)
 
-        # delegate to FastAPI via ASGI adapter (this injects env into scope)
-        return await asgi.fetch(_app, request, env)
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    message = "This is an example of FastAPI with Jinja2 - go to /hi/<name> to see a template rendered"
+    return {"message": message}
+
+
+@app.get("/hi/{name}")
+async def say_hi(name: str):
+    message = template.render(name=name)
+    return {"message": message}
+
+
+@app.get("/env")
+async def env(req: Request):
+    env = req.scope["env"]
+    message = f"Here is an example of getting an environment variable: {env.MESSAGE}"
+    return {"message": message}

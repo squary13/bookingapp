@@ -3,7 +3,10 @@ name = "booking-worker"
 version = "0.0.1"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.116",
+    "webtypy>=0.1.7",
+    "fastapi",
+    "markupsafe",
+    "jinja2",
 ]
 
 [dependency-groups]
