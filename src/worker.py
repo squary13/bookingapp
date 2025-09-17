@@ -11,7 +11,7 @@ def _build_app():
         title="Booking API (Python Workers)",
         version="0.0.1",
         # If you hit startup CPU errors again, temporarily set these to None:
-        # docs_url=None, redoc_url=None, openapi_url=None
+        docs_url=None, redoc_url=None, openapi_url=None
     )
 
     @app.get("/health", tags=["meta"])
