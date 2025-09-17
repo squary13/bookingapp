@@ -1,9 +1,9 @@
 from workers import WorkerEntrypoint, Request, Response  # type: ignore
-from .app.router import match, split_url, respond_json
-from .app.swagger import swagger_page, openapi_json
+from app.router import match, split_url, respond_json
+from app.swagger import swagger_page, openapi_json
 
 # Import endpoints to register them with the router (side-effects of @route)
-from .app.endpoints import meta, users  # noqa: F401
+from app.endpoints import meta, users 
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
