@@ -1,6 +1,7 @@
 from workers import WorkerEntrypoint, Request, Response  # type: ignore
 from app.router import match, split_url, respond_json
 from app.swagger import swagger_page, openapi_json
+import traceback
 
 # Import endpoints to register them (side-effect of @route)
 from app.endpoints import meta, users  # noqa: F401
@@ -41,6 +42,8 @@ class Default(WorkerEntrypoint):
             if isinstance(result, Response):
                 return result
             return respond_json(result)
-        except Exception:
-            # Catch-all: never bubble to 1101
+
+        except Exception as e:
+            print("UNHANDLED ERROR:", e)
+            print(traceback.format_exc())
             return respond_error(500)
