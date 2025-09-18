@@ -1,32 +1,35 @@
+# src/app/db.py
 from workers import Request  # type: ignore
 
-# ---- D1 helpers (no imports from app.db to avoid circular imports) ----
-
-def _db(req: Request):
-    # Attach env in worker before calling handlers: request.scope["env"] = env
-    env = getattr(req, "scope", {}).get("env") if hasattr(req, "scope") else None
-    if env is None:
-        # Fallback for older workers runtime shapes
-        env = getattr(req, "env", None)
-    if env is None or not hasattr(env, "DB"):
-        raise RuntimeError("D1 binding not available on request.env / request.scope['env']")
-    return env.DB
+def get_env(req: Request):
+    # injected in Default.fetch
+    return req.scope["env"]
 
 async def d1_all(req: Request, sql: str, *params):
-    stmt = _db(req).prepare(sql)
+    env = get_env(req)
+    stmt = env.DB.prepare(sql)
     if params:
         stmt = stmt.bind(*params)
     res = await stmt.all()
-    # Cloudflare returns an object with .results
-    return getattr(res, "results", res)
+    # Cloudflare's Python D1 returns an object with `.results`
+    return res.results
+
+async def d1_run(req: Request, sql: str, *params):
+    """
+    Execute a statement where we don't need rows back.
+    Some drivers support `.run()`. If not present, `.all()` still executes.
+    """
+    env = get_env(req)
+    stmt = env.DB.prepare(sql)
+    if params:
+        stmt = stmt.bind(*params)
+    run = getattr(stmt, "run", None)
+    if callable(run):
+        return await run()
+    else:
+        # Fallback: force execution
+        return await stmt.all()
 
 async def d1_first(req: Request, sql: str, *params):
     rows = await d1_all(req, sql, *params)
     return rows[0] if rows else None
-
-async def d1_run(req: Request, sql: str, *params):
-    stmt = _db(req).prepare(sql)
-    if params:
-        stmt = stmt.bind(*params)
-    # We don't need results for mutations
-    return await stmt.run()
