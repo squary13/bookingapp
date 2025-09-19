@@ -52,4 +52,4 @@ def json_body(req: Request):
 
 def respond_json(obj: Any, status: int = 200) -> Response:
     return Response(json.dumps(obj), status=status,
-                    headers={"content-type": "application/json; charset=utf-8"})
+                    headers={"content-type": "application/json; charset=utf-8","Access-Control-Allow-Origin": "*"})
