@@ -1,4 +1,5 @@
-const API_URL = "https://http://127.0.0.1:8787"; // замени на свой
+const API_URL = "https://bookingapp123.pages.dev";
+ // замени на свой
 
 window.addEventListener("DOMContentLoaded", () => {
   const dateInput = document.getElementById("date");
