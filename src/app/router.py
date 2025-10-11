@@ -49,11 +49,12 @@ async def json_body(req):
 
 
 
-def respond_json(obj: Any, status: int = 200) -> Response:
-    # Convert JsProxy to dict if needed
-    if hasattr(obj, "to_py"):
-        obj = obj.to_py()
-    return Response(json.dumps(obj), status=status,
-                    headers={"content-type": "application/json; charset=utf-8",
-                             "Access-Control-Allow-Origin": "*"})
+def respond_json(data, status=200):
+    return Response(json.dumps(data), status=status, headers={
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+    })
+
 
