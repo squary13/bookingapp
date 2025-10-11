@@ -232,22 +232,23 @@ async def create_booking(req: Request):
 
 
 
-@route("GET", "/api/bookings", summary="List bookings", tags=["bookings"])
-async def list_bookings(req: Request):
-    query = parse_qs(urlsplit(str(req.url)).query)
-    user_id = query.get("user_id", [None])[0]
+@route("GET", "/api/bookings", summary="Get user bookings", tags=["bookings"])
+async def get_bookings(req: Request):
+    try:
+        user_id = req.query.get("user_id")
+        if not user_id:
+            return respond_json({"error": "user_id is required"}, status=400)
 
-    if not user_id:
-        return respond_json({"error": "Missing user_id"}, status=400)
+        rows = await d1_all(req,
+            "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date, time",
+            int(user_id)
+        )
+        return respond_json([row.to_py() for row in rows])
 
-    rows = await d1_all(req, """
-        SELECT id, user_id, date, time, created_at
-        FROM bookings
-        WHERE user_id = ?
-        ORDER BY date, time
-    """, user_id)
+    except Exception as e:
+        print(f"❌ Error in get_bookings: {e}")
+        return respond_json({"error": "Internal server error"}, status=500)
 
-    return respond_json([row.to_py() for row in rows])
 
 @route("DELETE", "/api/bookings/{id}", summary="Cancel booking", tags=["bookings"],
        responses={
