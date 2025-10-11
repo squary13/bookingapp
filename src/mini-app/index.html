@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Запись</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h2>👋 Привет, <span id="username"></span>!</h2>
+
+    <label>📅 Дата:</label>
+    <input type="date" id="date" />
+
+    <label>⏰ Время:</label>
+    <select id="time"></select>
+
+    <button onclick="submitBooking()">Записаться</button>
+    <p id="status"></p>
+
+    <hr />
+    <h3>📋 Ваши записи:</h3>
+    <div id="bookings"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
