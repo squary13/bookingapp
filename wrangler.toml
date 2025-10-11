@@ -1,4 +1,4 @@
-name = "booking-worker-py-be"
+name = "booking-be"
 main = "src/worker.py"
 compatibility_date = "2025-08-14"
 compatibility_flags = ["python_workers"]
