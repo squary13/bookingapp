@@ -1,5 +1,4 @@
 const API_URL = "https://booking-worker-py-be.squary50.workers.dev";
- // замени на свой
 
 window.addEventListener("DOMContentLoaded", () => {
   const dateInput = document.getElementById("date");
@@ -9,9 +8,11 @@ window.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("status");
   const records = document.getElementById("records");
 
-  // Автозаполнение имени из URL
+  // Получение параметров из URL
   const urlParams = new URLSearchParams(window.location.search);
   const name = urlParams.get("name") || "";
+  const userId = parseInt(urlParams.get("user_id"), 10);
+
   nameInput.value = name;
   document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
 
@@ -26,7 +27,7 @@ window.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch(`${API_URL}/api/slots?date=${date}`);
       const data = await res.json();
-      if (!data.available.length) {
+      if (!data.available?.length) {
         status.textContent = "⚠️ Нет доступных слотов";
         return;
       }
@@ -42,7 +43,25 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Загрузка записей
+  // Загрузка записей по user_id
+  async function loadBookings(userId) {
+    records.innerHTML = "";
+    try {
+      const res = await fetch(`${API_URL}/api/bookings?user_id=${userId}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        records.textContent = `⚠️ ${data.error || "Ошибка загрузки"}`;
+        return;
+      }
+      records.innerHTML = data.length
+        ? data.map(r => `📅 ${r.date} в ${r.time}`).join("<br>")
+        : "ℹ️ У вас нет записей";
+    } catch (err) {
+      records.textContent = "❌ Ошибка соединения с API";
+    }
+  }
+
+  // Загрузка записей по имени (если нет user_id)
   async function loadRecords(name) {
     records.innerHTML = "";
     try {
@@ -61,20 +80,25 @@ window.addEventListener("DOMContentLoaded", () => {
   // Отправка записи
   document.getElementById("submitBtn").onclick = async () => {
     const payload = {
+      user_id: userId,
       date: dateInput.value,
       time: timeSelect.value,
       name: nameInput.value,
       phone: phoneInput.value
     };
     try {
-      const res = await fetch(`${API_URL}/api/book`, {
+      const res = await fetch(`${API_URL}/api/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const result = await res.json();
-      status.textContent = result.success ? "✅ Вы успешно записаны!" : "⚠️ Ошибка записи";
-      loadRecords(payload.name);
+      if (res.status === 201) {
+        status.textContent = "✅ Вы успешно записаны!";
+        userId ? loadBookings(userId) : loadRecords(payload.name);
+      } else {
+        status.textContent = `⚠️ ${result.error || "Ошибка записи"}`;
+      }
     } catch {
       status.textContent = "❌ Ошибка отправки";
     }
@@ -82,7 +106,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Инициализация
   loadSlots(today);
-  if (name) loadRecords(name);
+  if (userId) {
+    loadBookings(userId);
+  } else if (name) {
+    loadRecords(name);
+  }
 
   dateInput.addEventListener("change", () => {
     loadSlots(dateInput.value);

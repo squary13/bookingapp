@@ -144,6 +144,30 @@ async def get_slots(req: Request):
 
     return respond_json({"date": date, "available": available})
 
+@route("GET", "/api/bookings", summary="Get user bookings", tags=["bookings"],
+       query_params={
+           "user_id": {"type": "integer", "required": True}
+       },
+       responses={
+           "200": {"description": "List of bookings"},
+           "400": {"description": "Missing user_id"},
+           "500": {"description": "Internal server error"}
+       })
+async def get_bookings(req: Request):
+    try:
+        user_id = req.query.get("user_id")
+        if not user_id:
+            return respond_json({"error": "user_id is required"}, status=400)
+
+        rows = await d1_all(req,
+            "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date, time",
+            int(user_id)
+        )
+        return respond_json([row.to_py() for row in rows])
+
+    except Exception as e:
+        print(f"❌ Error in get_bookings: {e}")
+        return respond_json({"error": "Internal server error"}, status=500)
 
 @route("POST", "/api/bookings", summary="Create booking", tags=["bookings"],
        request_body={
