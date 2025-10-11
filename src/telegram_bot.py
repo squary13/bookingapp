@@ -29,14 +29,11 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = ReplyKeyboardMarkup([
-        [KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url="https://your-app-url.com"))]
+        [KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url="https://bookingapp1.pages.dev"))]
     ], resize_keyboard=True)
 
     await update.message.reply_text(
-        "Привет! Я бот для записи.\n\n"
-        "📌 Доступные команды:\n"
-        "/book — записаться\n"
-        "/mybookings — посмотреть свои записи\n",
+        "Добро пожаловать! Открой мини-приложение для записи:",
         reply_markup=keyboard
     )
 
@@ -180,7 +177,7 @@ async def delete_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Запуск
 def main():
     print("Бот запускается...")
-    app = ApplicationBuilder().token("7364112514:AAGi4LAVefHuljYgSIPbxvQK-Kvs_yvW4Tk").build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
