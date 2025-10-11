@@ -41,15 +41,19 @@ def split_url(request: Request) -> tuple[str, str]:
     parts = urlsplit(str(request.url))
     return (parts.path or "/"), (parts.query or "")
 
-def json_body(req: Request):
+async def json_body(req):
     try:
-        raw = getattr(req, "data", None)
-        if raw is None:
-            return None
-        return json.loads(raw or b"")
+        return await req.json()
     except Exception:
         return None
 
+
+
 def respond_json(obj: Any, status: int = 200) -> Response:
+    # Convert JsProxy to dict if needed
+    if hasattr(obj, "to_py"):
+        obj = obj.to_py()
     return Response(json.dumps(obj), status=status,
-                    headers={"content-type": "application/json; charset=utf-8","Access-Control-Allow-Origin": "*"})
+                    headers={"content-type": "application/json; charset=utf-8",
+                             "Access-Control-Allow-Origin": "*"})
+

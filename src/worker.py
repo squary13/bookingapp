@@ -17,10 +17,22 @@ class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
         # Make sure handlers can read env via req.scope["env"]
         try:
-            scope = getattr(request, "scope", None)
-            if not isinstance(scope, dict):
-                setattr(request, "scope", {})
-            request.scope["env"] = env
+            if not isinstance(getattr(request, "scope", None), dict):
+                request.scope = {}
+            request.scope["env"] = self.env
+            try:
+                db = self.env.DB
+                stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                result = await stmt.first()
+                print("🔍 Table 'users' exists:", bool(result))
+            except Exception as e:
+                print("❌ DB access failed:", e)
+
+            print("✅ Injecting env into scope:", self.env.DB)
+            print("✅ Final scope:", request.scope)
+
+
+
         except Exception:
             # If even injecting fails, return 500 rather than throwing 1101
             return respond_error(500)

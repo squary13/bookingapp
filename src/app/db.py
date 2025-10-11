@@ -2,8 +2,11 @@
 from workers import Request  # type: ignore
 
 def get_env(req: Request):
-    # injected in Default.fetch
-    return req.scope["env"]
+    scope = getattr(req, "scope", None)
+    print("🔍 scope in get_env:", scope)
+    return scope.get("env") if isinstance(scope, dict) else None
+
+
 
 async def d1_all(req: Request, sql: str, *params):
     env = get_env(req)
@@ -20,6 +23,10 @@ async def d1_run(req: Request, sql: str, *params):
     Some drivers support `.run()`. If not present, `.all()` still executes.
     """
     env = get_env(req)
+    env = get_env(req)
+    print("🔍 env in create_user:", env)
+    print("🔍 env.DB in create_user:", getattr(env, "DB", None))
+
     stmt = env.DB.prepare(sql)
     if params:
         stmt = stmt.bind(*params)
