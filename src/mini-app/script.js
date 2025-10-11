@@ -1,4 +1,4 @@
-const API_URL = "https://bookingapp123.pages.dev";
+const API_URL = "https://booking-worker-py-be.squary50.workers.dev";
  // замени на свой
 
 window.addEventListener("DOMContentLoaded", () => {
