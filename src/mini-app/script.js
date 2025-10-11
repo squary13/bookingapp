@@ -8,7 +8,6 @@ window.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("status");
   const records = document.getElementById("records");
 
-  // Получение параметров из URL
   const urlParams = new URLSearchParams(window.location.search);
   const name = urlParams.get("name") || "";
   const userId = parseInt(urlParams.get("user_id"), 10);
@@ -16,11 +15,9 @@ window.addEventListener("DOMContentLoaded", () => {
   nameInput.value = name;
   document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
 
-  // Установка сегодняшней даты
   const today = new Date().toISOString().split("T")[0];
   dateInput.value = today;
 
-  // Загрузка слотов
   async function loadSlots(date) {
     timeSelect.innerHTML = "";
     status.textContent = "⏳ Загружаем слоты...";
@@ -38,12 +35,11 @@ window.addEventListener("DOMContentLoaded", () => {
         timeSelect.appendChild(option);
       });
       status.textContent = "✅ Слоты загружены";
-    } catch (err) {
+    } catch {
       status.textContent = "❌ Ошибка загрузки слотов";
     }
   }
 
-  // Загрузка записей по user_id
   async function loadBookings(userId) {
     records.innerHTML = "";
     try {
@@ -56,12 +52,11 @@ window.addEventListener("DOMContentLoaded", () => {
       records.innerHTML = data.length
         ? data.map(r => `📅 ${r.date} в ${r.time}`).join("<br>")
         : "ℹ️ У вас нет записей";
-    } catch (err) {
+    } catch {
       records.textContent = "❌ Ошибка соединения с API";
     }
   }
 
-  // Загрузка записей по имени (если нет user_id)
   async function loadRecords(name) {
     records.innerHTML = "";
     try {
@@ -77,15 +72,18 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Отправка записи
   document.getElementById("submitBtn").onclick = async () => {
     const payload = {
       user_id: userId,
       date: dateInput.value,
-      time: timeSelect.value,
-      name: nameInput.value,
-      phone: phoneInput.value
+      time: timeSelect.value
     };
+
+    if (!payload.user_id || !payload.date || !payload.time) {
+      status.textContent = "⚠️ Все поля обязательны";
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/bookings`, {
         method: "POST",
@@ -95,7 +93,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const result = await res.json();
       if (res.status === 201) {
         status.textContent = "✅ Вы успешно записаны!";
-        userId ? loadBookings(userId) : loadRecords(payload.name);
+        userId ? loadBookings(userId) : loadRecords(name);
       } else {
         status.textContent = `⚠️ ${result.error || "Ошибка записи"}`;
       }
@@ -104,7 +102,6 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // Инициализация
   loadSlots(today);
   if (userId) {
     loadBookings(userId);
