@@ -1,60 +1,31 @@
 body {
-  font-family: sans-serif;
-  background: #1c1c1c;
+  background-color: #1e1e1e;
   color: #fff;
+  font-family: sans-serif;
   padding: 20px;
 }
-.container {
-  max-width: 400px;
-  margin: auto;
-}
-label {
+
+label, input, select, button {
   display: block;
-  margin-top: 15px;
-}
-input, select, button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 5px;
-  border-radius: 5px;
-  border: none;
-}
-button {
-  background-color: #2a9d8f;
-  color: white;
-  margin-top: 20px;
-  cursor: pointer;
-}
-#status {
-  margin-top: 15px;
-  font-weight: bold;
-}
-.booking {
-  background: #333;
-  padding: 10px;
-  margin-top: 10px;
-  border-radius: 5px;
-}
-.booking button {
-  background: #e76f51;
-  margin-top: 10px;
+  margin: 10px 0;
+  font-size: 16px;
 }
 
-.slot-button {
-  display: inline-block;
-  width: 100px; /* или 120px, как тебе удобнее */
-  padding: 10px;
-  margin: 5px;
-  text-align: center;
+input, select {
+  padding: 8px;
+  width: 100%;
+  max-width: 300px;
+}
+
+button {
+  padding: 10px 20px;
   background-color: #2a2a2a;
   color: white;
-  border: 1px solid #555;
+  border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
 }
 
-.slot-button:hover {
+button:hover {
   background-color: #444;
 }

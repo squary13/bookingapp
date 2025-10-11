@@ -1,148 +1,89 @@
-const tg = window.Telegram.WebApp;
-tg.expand();
+const API_URL = "https://http://127.0.0.1:8787"; // замени на свой
 
-const API_URL = "http://127.0.0.1:8787/api";
-const user = tg.initDataUnsafe.user;
-document.getElementById("username").innerText = user.first_name;
-
-loadSlots();
-loadBookings();
-
-async function loadSlots() {
+window.addEventListener("DOMContentLoaded", () => {
   const dateInput = document.getElementById("date");
   const timeSelect = document.getElementById("timeSelect");
+  const nameInput = document.getElementById("nameInput");
+  const phoneInput = document.getElementById("phoneInput");
   const status = document.getElementById("status");
+  const records = document.getElementById("records");
 
-  async function fetchSlots(date) {
+  // Автозаполнение имени из URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const name = urlParams.get("name") || "";
+  nameInput.value = name;
+  document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
+
+  // Установка сегодняшней даты
+  const today = new Date().toISOString().split("T")[0];
+  dateInput.value = today;
+
+  // Загрузка слотов
+  async function loadSlots(date) {
     timeSelect.innerHTML = "";
     status.textContent = "⏳ Загружаем слоты...";
-
     try {
       const res = await fetch(`${API_URL}/api/slots?date=${date}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-
-      if (!data.available || data.available.length === 0) {
+      if (!data.available.length) {
         status.textContent = "⚠️ Нет доступных слотов";
         return;
       }
-
       data.available.forEach(slot => {
         const option = document.createElement("option");
         option.value = slot;
         option.textContent = slot;
         timeSelect.appendChild(option);
       });
-
       status.textContent = "✅ Слоты загружены";
     } catch (err) {
-      console.error("Ошибка загрузки слотов:", err);
       status.textContent = "❌ Ошибка загрузки слотов";
     }
   }
 
-  // Загружаем слоты при изменении даты
-  dateInput.addEventListener("change", () => {
-    const date = dateInput.value;
-    if (date) fetchSlots(date);
-  });
-
-  // Загружаем слоты при открытии страницы
-  const today = new Date().toISOString().split("T")[0];
-  dateInput.value = today;
-  fetchSlots(today);
-}
-
-
-async function submitBooking() {
-  const date = document.getElementById("date").value;
-  const time = document.getElementById("time").value;
-
-  if (!date || !time) {
-    document.getElementById("status").innerText = "❌ Укажите дату и время";
-    return;
+  // Загрузка записей
+  async function loadRecords(name) {
+    records.innerHTML = "";
+    try {
+      const res = await fetch(`${API_URL}/api/myrecord?name=${encodeURIComponent(name)}`);
+      const data = await res.json();
+      data.records.forEach(rec => {
+        const div = document.createElement("div");
+        div.textContent = `${rec.date} в ${rec.time}`;
+        records.appendChild(div);
+      });
+    } catch {
+      records.textContent = "❌ Ошибка загрузки записей";
+    }
   }
 
-  try {
-    let res = await fetch(`${API_URL}/users/${user.id}`);
-    let userData;
-    if (res.status === 200) {
-      userData = await res.json();
-    } else {
-      res = await fetch(`${API_URL}/users`, {
+  // Отправка записи
+  document.getElementById("submitBtn").onclick = async () => {
+    const payload = {
+      date: dateInput.value,
+      time: timeSelect.value,
+      name: nameInput.value,
+      phone: phoneInput.value
+    };
+    try {
+      const res = await fetch(`${API_URL}/api/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          telegram_id: user.id,
-          name: user.first_name,
-          phone: "0000000",
-          role: "user"
-        })
+        body: JSON.stringify(payload)
       });
-      userData = await res.json();
+      const result = await res.json();
+      status.textContent = result.success ? "✅ Вы успешно записаны!" : "⚠️ Ошибка записи";
+      loadRecords(payload.name);
+    } catch {
+      status.textContent = "❌ Ошибка отправки";
     }
+  };
 
-    const booking = {
-      user_id: userData.id,
-      date,
-      time
-    };
+  // Инициализация
+  loadSlots(today);
+  if (name) loadRecords(name);
 
-    res = await fetch(`${API_URL}/bookings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(booking)
-    });
-
-    const result = await res.json();
-    if (res.status === 201) {
-      document.getElementById("status").innerText = "✅ Запись создана!";
-      loadBookings();
-    } else {
-      document.getElementById("status").innerText = `❌ ${result.error}`;
-    }
-  } catch {
-    document.getElementById("status").innerText = "❌ Ошибка сервера";
-  }
-}
-
-async function loadBookings() {
-  const container = document.getElementById("bookings");
-  container.innerHTML = "";
-
-  try {
-    const resUser = await fetch(`${API_URL}/users/${user.id}`);
-    if (resUser.status !== 200) return;
-
-    const userData = await resUser.json();
-    const res = await fetch(`${API_URL}/bookings?user_id=${userData.id}`);
-    const bookings = await res.json();
-
-    bookings.forEach(b => {
-      const div = document.createElement("div");
-      div.className = "booking";
-      div.innerHTML = `<strong>${b.date} в ${b.time}</strong><br/>`;
-      const btn = document.createElement("button");
-      btn.textContent = "❌ Удалить";
-      btn.onclick = () => deleteBooking(b.id);
-      div.appendChild(btn);
-      container.appendChild(div);
-    });
-  } catch {
-    container.innerText = "❌ Ошибка загрузки записей";
-  }
-}
-
-async function deleteBooking(id) {
-  try {
-    const res = await fetch(`${API_URL}/bookings/${id}`, { method: "DELETE" });
-    if (res.status === 200) {
-      document.getElementById("status").innerText = "✅ Запись удалена";
-      loadBookings();
-    } else {
-      document.getElementById("status").innerText = "❌ Ошибка удаления";
-    }
-  } catch {
-    document.getElementById("status").innerText = "❌ Ошибка сервера";
-  }
-}
+  dateInput.addEventListener("change", () => {
+    loadSlots(dateInput.value);
+  });
+});

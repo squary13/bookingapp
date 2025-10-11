@@ -5,25 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Запись</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h2>👋 Привет, <span id="username"></span>!</h2>
+  <h2 id="welcomeText">👋 Привет!</h2>
 
-    <label>📅 Дата:</label>
-    <input type="date" id="date" />
+  <label for="date">📅 Дата:</label>
+  <input type="date" id="date" />
 
-    <label>⏰ Время:</label>
-    <select id="time"></select>
+  <label for="timeSelect">⏰ Время:</label>
+  <select id="timeSelect"></select>
 
-    <button onclick="submitBooking()">Записаться</button>
-    <p id="status"></p>
+  <label for="nameInput">🙍 Имя:</label>
+  <input type="text" id="nameInput" placeholder="Ваше имя" />
 
-    <hr />
-    <h3>📋 Ваши записи:</h3>
-    <div id="bookings"></div>
-  </div>
+  <label for="phoneInput">📞 Телефон:</label>
+  <input type="text" id="phoneInput" placeholder="+371..." />
+
+  <button id="submitBtn">Записаться</button>
+
+  <p id="status"></p>
+
+  <h3>📄 Ваши записи:</h3>
+  <div id="records"></div>
 
   <script src="script.js"></script>
 </body>
