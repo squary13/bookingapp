@@ -39,3 +39,22 @@ button {
   background: #e76f51;
   margin-top: 10px;
 }
+
+.slot-button {
+  display: inline-block;
+  width: 100px; /* или 120px, как тебе удобнее */
+  padding: 10px;
+  margin: 5px;
+  text-align: center;
+  background-color: #2a2a2a;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.slot-button:hover {
+  background-color: #444;
+}

@@ -26,14 +26,31 @@ def format_slots_table(slots: list[str]) -> str:
 
 # /start
 from telegram import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+import urllib.parse
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+
+    # Получаем имя пользователя
+    first_name = user.first_name or ""
+    last_name = user.last_name or ""
+    full_name = f"{first_name} {last_name}".strip()
+
+    # Кодируем имя для URL
+    encoded_name = urllib.parse.quote(full_name)
+
+    # Формируем URL для мини-приложения
+    web_app_url = f"https://bookingapp1.pages.dev?name={encoded_name}"
+
+    # Клавиатура с кнопкой запуска мини-приложения
     keyboard = ReplyKeyboardMarkup([
-        [KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url="https://bookingapp1.pages.dev"))]
+        [KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url=web_app_url))]
     ], resize_keyboard=True)
 
+    # Отправляем персональное приветствие
     await update.message.reply_text(
-        "Добро пожаловать! Открой мини-приложение для записи:",
+        f"Добро пожаловать, {full_name}! Открой мини-приложение для записи:",
         reply_markup=keyboard
     )
 

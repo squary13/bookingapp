@@ -10,25 +10,49 @@ loadBookings();
 
 async function loadSlots() {
   const dateInput = document.getElementById("date");
-  const timeSelect = document.getElementById("time");
+  const timeSelect = document.getElementById("timeSelect");
+  const status = document.getElementById("status");
 
-  dateInput.onchange = async () => {
-    const date = dateInput.value;
+  async function fetchSlots(date) {
     timeSelect.innerHTML = "";
+    status.textContent = "⏳ Загружаем слоты...";
+
     try {
-      const res = await fetch(`${API_URL}/slots?date=${date}`);
+      const res = await fetch(`${API_URL}/api/slots?date=${date}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+
+      if (!data.available || data.available.length === 0) {
+        status.textContent = "⚠️ Нет доступных слотов";
+        return;
+      }
+
       data.available.forEach(slot => {
         const option = document.createElement("option");
         option.value = slot;
         option.textContent = slot;
         timeSelect.appendChild(option);
       });
-    } catch {
-      document.getElementById("status").innerText = "❌ Ошибка загрузки слотов";
+
+      status.textContent = "✅ Слоты загружены";
+    } catch (err) {
+      console.error("Ошибка загрузки слотов:", err);
+      status.textContent = "❌ Ошибка загрузки слотов";
     }
-  };
+  }
+
+  // Загружаем слоты при изменении даты
+  dateInput.addEventListener("change", () => {
+    const date = dateInput.value;
+    if (date) fetchSlots(date);
+  });
+
+  // Загружаем слоты при открытии страницы
+  const today = new Date().toISOString().split("T")[0];
+  dateInput.value = today;
+  fetchSlots(today);
 }
+
 
 async function submitBooking() {
   const date = document.getElementById("date").value;
