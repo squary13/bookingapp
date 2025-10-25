@@ -1,4 +1,5 @@
 import json
+import os
 from workers import Request, Response  # type: ignore
 from urllib.parse import urlsplit, parse_qs
 from app.router import route, json_body
@@ -24,6 +25,17 @@ def get_query_param(req: Request, name: str, required: bool = False, cast: Calla
         return cast(value) if value is not None else None
     except Exception:
         raise ValueError(f"Invalid value for query parameter '{name}': {value}")
+
+def serve_static(filename: str) -> Response:
+    path = os.path.join("src", "app", "mini-app", filename)
+    if not os.path.exists(path):
+        return Response("File not found", status=404)
+
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    content_type = "text/html" if filename.endswith(".html") else "text/javascript"
+    return Response(content, status=200, headers={"Content-Type": content_type})
 
 @route("OPTIONS", "/{any}")
 async def options_all(req: Request, any: str):
@@ -95,89 +107,31 @@ async def update_user(req: Request, id: str):
     row = await d1_first(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE id = ?", id)
     return respond_json(row.to_py(), status=200)
 
-# BOOKINGS
+@route("DELETE", "/api/users/{telegram_id}")
+async def delete_user(req: Request, telegram_id: int):
+    user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
+    if not user:
+        return respond_json({"error": "User not found"}, status=404)
 
-@route("GET", "/api/slots")
-async def get_slots(req: Request):
-    try:
-        date = get_query_param(req, "date", required=True)
-    except ValueError as e:
-        return respond_json({"error": str(e)}, status=400)
+    user_id = user.to_py()["id"]
+    await d1_run(req, "DELETE FROM bookings WHERE user_id = ?", user_id)
+    await d1_run(req, "DELETE FROM users WHERE id = ?", user_id)
 
-    all_slots = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
-    booked_rows = await d1_all(req, "SELECT time FROM bookings WHERE date = ?", date)
-    booked_times = [row.to_py()["time"] for row in booked_rows] if booked_rows else []
-    available = [slot for slot in all_slots if slot not in booked_times]
-
-    return respond_json({"date": date, "available": available})
-
-@route("GET", "/api/bookings")
-async def get_bookings(req: Request):
-    try:
-        user_id = get_query_param(req, "user_id", required=True, cast=int)
-        rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date, time", user_id)
-        return respond_json([row.to_py() for row in rows])
-    except ValueError as e:
-        return respond_json({"error": str(e)}, status=400)
-    except Exception as e:
-        print(f"❌ Error in get_bookings: {e}")
-        return respond_json({"error": "Internal server error"}, status=500)
-
-@route("GET", "/api/available-dates")
-async def available_dates(req: Request):
-    all_slots = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
-    rows = await d1_all(req, "SELECT date, time FROM bookings")
-
-    booked = {}
-    for row in rows:
-        r = row.to_py()
-        booked.setdefault(r["date"], []).append(r["time"])
-
-    available = []
-    for date, times in booked.items():
-        if len(times) < len(all_slots):
-            available.append(date)
-
-    if not available:
-        from datetime import date, timedelta
-        today = date.today()
-        available = [(today + timedelta(days=i)).isoformat() for i in range(7)]
-
-    return respond_json({"dates": available})
-
-@route("POST", "/api/bookings")
-async def create_booking(req: Request):
-    try:
-        data = await json_body(req) or {}
-        print(f"📥 Incoming booking payload: {data}")
-
-        user_id = data.get("user_id")
-        date = data.get("date")
-        time = data.get("time")
-
-        if not isinstance(user_id, int) or not date or not time:
-            return respond_json({"error": "All fields required"}, status=400)
-
-        user_has_booking = await d1_first(req, "SELECT id FROM bookings WHERE user_id = ? AND date = ?", user_id, date)
-        if user_has_booking:
-            return respond_json({"error": "Вы уже записаны на этот день"}, status=400)
-
-        slot_taken = await d1_first(req, "SELECT id FROM bookings WHERE date = ? AND time = ?", date, time)
-        if slot_taken:
-            return respond_json({"error": "Слот уже занят"}, status=400)
-
-        await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
-        row = await d1_first(req, "SELECT * FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
-        return respond_json(row.to_py(), status=201)
-    except Exception as e:
-        print(f"❌ Error in create_booking: {e}")
-        return respond_json({"error": "Internal server error"}, status=500)
-
-@route("DELETE", "/api/bookings/{id}")
-async def cancel_booking(req: Request, id: str):
-    row = await d1_first(req, "SELECT id FROM bookings WHERE id = ?", id)
-    if not row:
-        return respond_json({"error": "Booking not found"}, status=404)
-
-    await d1_run(req, "DELETE FROM bookings WHERE id = ?", id)
     return respond_json({"ok": True}, status=200)
+
+@route("GET", "/api/bookings/by-user/{telegram_id}")
+async def get_bookings_by_telegram(req: Request, telegram_id: int):
+    user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
+    if not user:
+        return respond_json({"error": "User not found"}, status=404)
+
+    user_id = user.to_py()["id"]
+    rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date DESC, time DESC", user_id)
+    return respond_json([row.to_py() for row in rows])
+
+@route("GET", "/admin")
+async def serve_admin(req: Request):
+    token = get_query_param(req, "key")
+    if token != "adminsecret":
+        return Response("Unauthorized", status=403)
+    return await serve_static("admin.html")

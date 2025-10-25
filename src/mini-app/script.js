@@ -17,10 +17,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
 
   async function ensureUserExists(userId, name, phone) {
+    status.textContent = "⏳ Проверка пользователя...";
     try {
       const res = await fetch(`${API_URL}/api/users/${userId}`);
       const user = await res.json();
       if (!user || user.error) {
+        console.log("📤 Создаём пользователя:", { telegram_id: userId, name, phone });
         const createRes = await fetch(`${API_URL}/api/users`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -33,16 +35,20 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
         const result = await createRes.json();
         if (createRes.status === 201) {
+          status.textContent = "✅ Пользователь создан!";
           console.log("✅ Пользователь создан:", result);
         } else {
+          status.textContent = `⚠️ Ошибка создания: ${result.error || "Неизвестно"}`;
           console.warn("⚠️ Ошибка создания пользователя:", result.error);
         }
       } else {
+        status.textContent = "✅ Пользователь найден!";
         console.log("✅ Пользователь найден:", user.name);
         nameInput.value = user.name;
         phoneInput.value = user.phone;
       }
     } catch (err) {
+      status.textContent = "❌ Ошибка проверки пользователя";
       console.error("❌ Ошибка при проверке пользователя:", err);
     }
   }
@@ -105,6 +111,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     if (!payload.user_id || !payload.date || !payload.time) {
       status.textContent = "⚠️ Все поля обязательны";
+      if (!payload.date) dateInput.focus();
+      else if (!payload.time) timeSelect.focus();
       return;
     }
 
@@ -143,5 +151,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (userId) {
     await ensureUserExists(userId, nameInput.value, phoneInput.value);
     loadBookings(userId);
+  } else {
+    status.textContent = "⚠️ Не удалось определить пользователя";
   }
+
+  // Автофокус на первом пустом поле
+  if (!nameInput.value) nameInput.focus();
+  else if (!phoneInput.value) phoneInput.focus();
 });
