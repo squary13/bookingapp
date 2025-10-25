@@ -1,6 +1,6 @@
 const API_URL = "https://booking-worker-py-be.squary50.workers.dev";
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   const dateInput = document.getElementById("date");
   const timeSelect = document.getElementById("timeSelect");
   const nameInput = document.getElementById("nameInput");
@@ -15,8 +15,15 @@ window.addEventListener("DOMContentLoaded", () => {
   nameInput.value = name;
   document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
 
-  const today = new Date().toISOString().split("T")[0];
-  dateInput.value = today;
+  async function fetchAvailableDates() {
+    try {
+      const res = await fetch(`${API_URL}/api/available-dates`);
+      const data = await res.json();
+      return data.dates || [];
+    } catch {
+      return [];
+    }
+  }
 
   async function loadSlots(date) {
     timeSelect.innerHTML = "";
@@ -102,14 +109,23 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const availableDates = await fetchAvailableDates();
+
+  flatpickr("#date", {
+    dateFormat: "Y-m-d",
+    enable: availableDates,
+    defaultDate: new Date(),
+    onChange: ([selectedDate]) => {
+      loadSlots(selectedDate.toISOString().split("T")[0]);
+    }
+  });
+
+  const today = new Date().toISOString().split("T")[0];
   loadSlots(today);
+
   if (userId) {
     loadBookings(userId);
   } else if (name) {
     loadRecords(name);
   }
-
-  dateInput.addEventListener("change", () => {
-    loadSlots(dateInput.value);
-  });
 });

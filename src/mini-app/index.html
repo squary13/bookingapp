@@ -1,33 +1,34 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Запись</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>Запись на прием</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h2 id="welcomeText">👋 Привет!</h2>
+  <div class="container">
+    <h2 id="welcomeText">👋 Привет, Гость!</h2>
 
-  <label for="date">📅 Дата:</label>
-  <input type="date" id="date" />
+    <label for="date">Дата</label>
+    <input type="text" id="date">
 
-  <label for="timeSelect">⏰ Время:</label>
-  <select id="timeSelect"></select>
+    <label for="timeSelect">Время</label>
+    <select id="timeSelect"></select>
 
-  <label for="nameInput">🙍 Имя:</label>
-  <input type="text" id="nameInput" placeholder="Ваше имя" />
+    <label for="nameInput">Имя</label>
+    <input type="text" id="nameInput">
 
-  <label for="phoneInput">📞 Телефон:</label>
-  <input type="text" id="phoneInput" placeholder="+371..." />
+    <label for="phoneInput">Телефон</label>
+    <input type="text" id="phoneInput">
 
-  <button id="submitBtn">Записаться</button>
+    <button id="submitBtn">Записаться</button>
 
-  <p id="status"></p>
+    <div class="status" id="status"></div>
+    <div class="records" id="records"></div>
+  </div>
 
-  <h3>📄 Ваши записи:</h3>
-  <div id="records"></div>
-
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="script.js"></script>
 </body>
 </html>

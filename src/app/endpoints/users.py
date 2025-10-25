@@ -123,6 +123,31 @@ async def get_bookings(req: Request):
         print(f"❌ Error in get_bookings: {e}")
         return respond_json({"error": "Internal server error"}, status=500)
 
+@route("GET", "/api/available-dates")
+async def available_dates(req: Request):
+    all_slots = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
+    rows = await d1_all(req, "SELECT date, time FROM bookings")
+    
+    # Собираем количество занятых слотов по каждой дате
+    booked = {}
+    for row in rows:
+        r = row.to_py()
+        booked.setdefault(r["date"], []).append(r["time"])
+
+    # Даты, где есть хотя бы один свободный слот
+    available = []
+    for date, times in booked.items():
+        if len(times) < len(all_slots):
+            available.append(date)
+
+    # Если вообще нет записей, показываем ближайшие 7 дней
+    if not available:
+        from datetime import date, timedelta
+        today = date.today()
+        available = [(today + timedelta(days=i)).isoformat() for i in range(7)]
+
+    return respond_json({"dates": available})
+
 @route("POST", "/api/bookings")
 async def create_booking(req: Request):
     try:
@@ -157,3 +182,4 @@ async def cancel_booking(req: Request, id: str):
 
     await d1_run(req, "DELETE FROM bookings WHERE id = ?", id)
     return respond_json({"ok": True}, status=200)
+
