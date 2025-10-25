@@ -3,6 +3,7 @@ from workers import Request, Response  # type: ignore
 from urllib.parse import urlsplit, parse_qs
 from app.router import route, json_body
 from app.db import d1_run, d1_first, d1_all
+from typing import Callable, Any
 
 def respond_json(data, status=200):
     return Response(json.dumps(data), status=status, headers={
@@ -12,6 +13,18 @@ def respond_json(data, status=200):
         "Access-Control-Allow-Headers": "Content-Type"
     })
 
+def get_query_param(req: Request, name: str, required: bool = False, cast: Callable = str) -> Any:
+    query = parse_qs(urlsplit(str(req.url)).query)
+    value = query.get(name, [None])[0]
+
+    if required and value is None:
+        raise ValueError(f"Missing required query parameter: {name}")
+
+    try:
+        return cast(value) if value is not None else None
+    except Exception:
+        raise ValueError(f"Invalid value for query parameter '{name}': {value}")
+
 @route("OPTIONS", "/{any}")
 async def options_all(req: Request, any: str):
     return Response("", status=204, headers={
@@ -19,7 +32,6 @@ async def options_all(req: Request, any: str):
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type"
     })
-
 
 # USERS
 
@@ -87,11 +99,10 @@ async def update_user(req: Request, id: str):
 
 @route("GET", "/api/slots")
 async def get_slots(req: Request):
-    query = parse_qs(urlsplit(str(req.url)).query)
-    date = query.get("date", [None])[0]
-
-    if not date:
-        return respond_json({"error": "Missing date"}, status=400)
+    try:
+        date = get_query_param(req, "date", required=True)
+    except ValueError as e:
+        return respond_json({"error": str(e)}, status=400)
 
     all_slots = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
     booked_rows = await d1_all(req, "SELECT time FROM bookings WHERE date = ?", date)
@@ -103,12 +114,11 @@ async def get_slots(req: Request):
 @route("GET", "/api/bookings")
 async def get_bookings(req: Request):
     try:
-        user_id = req.query.get("user_id")
-        if not user_id:
-            return respond_json({"error": "user_id is required"}, status=400)
-
-        rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date, time", int(user_id))
+        user_id = get_query_param(req, "user_id", required=True, cast=int)
+        rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date, time", user_id)
         return respond_json([row.to_py() for row in rows])
+    except ValueError as e:
+        return respond_json({"error": str(e)}, status=400)
     except Exception as e:
         print(f"❌ Error in get_bookings: {e}")
         return respond_json({"error": "Internal server error"}, status=500)
