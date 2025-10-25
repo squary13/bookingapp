@@ -27,7 +27,9 @@ def get_query_param(req: Request, name: str, required: bool = False, cast: Calla
         raise ValueError(f"Invalid value for query parameter '{name}': {value}")
 
 def serve_static(filename: str) -> Response:
-    path = os.path.join("src", "app", "mini-app", filename)
+    path = os.path.join("src","mini-app", filename)
+    print(f"📁 Trying to serve: {path}") 
+
     if not os.path.exists(path):
         return Response("File not found", status=404)
 
@@ -36,6 +38,9 @@ def serve_static(filename: str) -> Response:
 
     content_type = "text/html" if filename.endswith(".html") else "text/javascript"
     return Response(content, status=200, headers={"Content-Type": content_type})
+
+
+
 
 @route("OPTIONS", "/{any}")
 async def options_all(req: Request, any: str):
