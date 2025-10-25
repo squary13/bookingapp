@@ -10,7 +10,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const urlParams = new URLSearchParams(window.location.search);
   const name = urlParams.get("name") || "";
-  const userId = parseInt(urlParams.get("user_id"), 10);
+  const userIdRaw = urlParams.get("user_id");
+  const userId = userIdRaw && !isNaN(parseInt(userIdRaw, 10)) ? parseInt(userIdRaw, 10) : null;
 
   nameInput.value = name;
   document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
@@ -64,21 +65,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  async function loadRecords(name) {
-    records.innerHTML = "";
-    try {
-      const res = await fetch(`${API_URL}/api/myrecord?name=${encodeURIComponent(name)}`);
-      const data = await res.json();
-      data.records.forEach(rec => {
-        const div = document.createElement("div");
-        div.textContent = `${rec.date} в ${rec.time}`;
-        records.appendChild(div);
-      });
-    } catch {
-      records.textContent = "❌ Ошибка загрузки записей";
-    }
-  }
-
   document.getElementById("submitBtn").onclick = async () => {
     const payload = {
       user_id: userId,
@@ -100,7 +86,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       const result = await res.json();
       if (res.status === 201) {
         status.textContent = "✅ Вы успешно записаны!";
-        userId ? loadBookings(userId) : loadRecords(name);
+        loadBookings(userId);
       } else {
         status.textContent = `⚠️ ${result.error || "Ошибка записи"}`;
       }
@@ -125,7 +111,5 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (userId) {
     loadBookings(userId);
-  } else if (name) {
-    loadRecords(name);
   }
 });
