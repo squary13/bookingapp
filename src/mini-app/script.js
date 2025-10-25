@@ -16,6 +16,37 @@ window.addEventListener("DOMContentLoaded", async () => {
   nameInput.value = name;
   document.getElementById("welcomeText").textContent = `👋 Привет, ${name || "Гость"}!`;
 
+  async function ensureUserExists(userId, name, phone) {
+    try {
+      const res = await fetch(`${API_URL}/api/users/${userId}`);
+      const user = await res.json();
+      if (!user || user.error) {
+        const createRes = await fetch(`${API_URL}/api/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            telegram_id: userId,
+            name: name || "Без имени",
+            phone: phone || "00000000",
+            role: "user"
+          })
+        });
+        const result = await createRes.json();
+        if (createRes.status === 201) {
+          console.log("✅ Пользователь создан:", result);
+        } else {
+          console.warn("⚠️ Ошибка создания пользователя:", result.error);
+        }
+      } else {
+        console.log("✅ Пользователь найден:", user.name);
+        nameInput.value = user.name;
+        phoneInput.value = user.phone;
+      }
+    } catch (err) {
+      console.error("❌ Ошибка при проверке пользователя:", err);
+    }
+  }
+
   async function fetchAvailableDates() {
     try {
       const res = await fetch(`${API_URL}/api/available-dates`);
@@ -110,6 +141,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   loadSlots(today);
 
   if (userId) {
+    await ensureUserExists(userId, nameInput.value, phoneInput.value);
     loadBookings(userId);
   }
 });
