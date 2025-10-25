@@ -134,4 +134,4 @@ async def serve_admin(req: Request):
     token = get_query_param(req, "key")
     if token != "adminsecret":
         return Response("Unauthorized", status=403)
-    return await serve_static("admin.html")
+    return serve_static("admin.html")
