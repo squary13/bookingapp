@@ -5,6 +5,7 @@ from urllib.parse import urlsplit, parse_qs
 from app.router import route, json_body
 from app.db import d1_run, d1_first, d1_all
 from typing import Callable, Any
+from datetime import datetime, timedelta
 
 def respond_json(data, status=200):
     return Response(json.dumps(data), status=status, headers={
@@ -130,6 +131,28 @@ async def get_available_dates(req: Request):
     rows = await d1_all(req, "SELECT DISTINCT date FROM bookings ORDER BY date ASC")
     dates = [row.to_py()["date"] for row in rows]
     return respond_json({"dates": dates})
+
+@route("POST", "/api/generate-slots")
+async def generate_slots(req: Request):
+    today = datetime.today()
+    dates = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
+    times = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"]
+
+    # Получаем user_id админа (можно заменить на фиксированный ID)
+    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
+    if not admin:
+        return respond_json({"error": "Нет администратора"}, status=400)
+    user_id = admin.to_py()["id"]
+
+    count = 0
+    for date in dates:
+        if datetime.strptime(date, "%Y-%m-%d").weekday() >= 5:
+            continue  # пропускаем выходные
+        for time in times:
+            await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
+            count += 1
+
+    return respond_json({"ok": True, "generated": count})
 
 # STATIC ROUTES
 
