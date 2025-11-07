@@ -6,6 +6,7 @@ from app.router import route, json_body
 from app.db import d1_run, d1_first, d1_all
 from typing import Callable, Any
 from datetime import datetime, timedelta
+from pathlib import Path
 
 def respond_json(data, status=200):
     return Response(json.dumps(data), status=status, headers={
@@ -28,12 +29,19 @@ def get_query_param(req: Request, name: str, required: bool = False, cast: Calla
 def serve_static(filename: str) -> Response:
     base_dir = os.path.dirname(__file__)
     path = os.path.abspath(os.path.join(base_dir, "..", "..", "mini-app", filename))
-    print(f"📁 Serving static file: {path}")
+
+    # 🔍 Диагностика путей
+    print(f"📁 __file__: {__file__}")
+    print(f"📁 base_dir: {base_dir}")
+    print(f"📁 full path: {path}")
+
     if not os.path.exists(path):
         print("❌ File not found!")
         return Response("File not found", status=404)
+
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
+
     ext = os.path.splitext(filename)[1]
     mime = {
         ".html": "text/html",
@@ -42,9 +50,12 @@ def serve_static(filename: str) -> Response:
         ".json": "application/json",
         ".svg": "image/svg+xml"
     }.get(ext, "text/plain")
+
     if mime.startswith("text/") or mime == "application/javascript":
         mime += "; charset=utf-8"
+
     return Response(content, status=200, headers={"Content-Type": mime})
+
 
 @route("OPTIONS", "/{any}")
 async def options_all(req: Request, any: str):
