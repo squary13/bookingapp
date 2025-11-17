@@ -1,123 +1,158 @@
-import requests
+# telegram_bot.py
+import os
+import re
 import logging
+import urllib.parse
+import requests
+from typing import List
+
 from telegram import (
     Update, ReplyKeyboardMarkup, ReplyKeyboardRemove,
-    InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, WebAppInfo
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     ContextTypes, filters, ConversationHandler, CallbackQueryHandler
 )
 
-API_URL = "http://127.0.0.1:8787/api"
-BOT_TOKEN = "7364112514:AAGi4LAVefHuljYgSIPbxvQK-Kvs_yvW4Tk"
+# === CONFIG ===
+API_URL = "https://booking-worker-py-be.workers.dev/api"  # PROD backend base
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7364112514:AAGi4LAVefHuljYgSIPbxvQK-Kvs_yvW4Tk")
 
 CHOOSING_DATE, CHOOSING_TIME, ENTER_NAME, ENTER_PHONE = range(4)
+DEFAULT_SLOTS: List[str] = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"]
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def format_slots_table(slots: list[str]) -> str:
+
+def format_slots_table(slots: List[str]) -> str:
     header = "🗓️ Доступные слоты:\n\n"
     rows = ""
     for i in range(0, len(slots), 3):
-        row = " | ".join(f"{slot:^8}" for slot in slots[i:i+3])
+        row = " | ".join(f"{slot:^8}" for slot in slots[i:i + 3])
         rows += row + "\n"
     return header + "```\n" + rows + "```"
 
-# /start
-from telegram import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
-import urllib.parse
+
+def is_valid_date(date_str: str) -> bool:
+    return bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str))
 
 
+# === API HELPERS ===
+def api_get(path: str, params: dict | None = None):
+    url = f"{API_URL}{path}"
+    r = requests.get(url, params=params, timeout=10)
+    r.raise_for_status()
+    return r
+
+
+def api_post(path: str, json: dict):
+    url = f"{API_URL}{path}"
+    r = requests.post(url, json=json, timeout=10)
+    r.raise_for_status()
+    return r
+
+
+def api_delete(path: str):
+    url = f"{API_URL}{path}"
+    r = requests.delete(url, timeout=10)
+    r.raise_for_status()
+    return r
+
+
+# === HANDLERS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-
-    # Получаем имя пользователя
     first_name = user.first_name or ""
     last_name = user.last_name or ""
     full_name = f"{first_name} {last_name}".strip()
 
-    # Кодируем имя для URL
     encoded_name = urllib.parse.quote(full_name)
+    telegram_id = user.id
+    web_app_url = f"https://booking-working-app-fe.pages.dev/?name={encoded_name}&user_id={telegram_id}"
 
-    # Формируем URL для мини-приложения
-    web_app_url = f"https://bookingapp1.pages.dev?name={encoded_name}"
+    keyboard = ReplyKeyboardMarkup(
+        [[KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url=web_app_url))]],
+        resize_keyboard=True
+    )
 
-    # Клавиатура с кнопкой запуска мини-приложения
-    keyboard = ReplyKeyboardMarkup([
-        [KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url=web_app_url))]
-    ], resize_keyboard=True)
-
-    # Отправляем персональное приветствие
     await update.message.reply_text(
         f"Добро пожаловать, {full_name}! Открой мини-приложение для записи:",
         reply_markup=keyboard
     )
 
 
-# /book
 async def book(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("На какую дату хотите записаться? (в формате YYYY-MM-DD)")
+    await update.message.reply_text(
+        "На какую дату хотите записаться? Введите в формате YYYY-MM-DD (например, 2025-11-20)"
+    )
     return CHOOSING_DATE
 
-# Выбор даты
-async def choose_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    date = update.message.text
-    context.user_data["date"] = date
-    try:
-        r = requests.get(f"{API_URL}/slots", params={"date": date})
-        r.raise_for_status()
-        slots = r.json().get("available", [])
-    except Exception as e:
-        logging.error(f"Ошибка при получении слотов: {e}")
-        await update.message.reply_text("Ошибка при получении слотов. Попробуйте позже.")
-        return ConversationHandler.END
 
-    if not slots:
-        await update.message.reply_text("Нет свободных слотов на эту дату. Попробуйте другую.")
+async def choose_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    date = update.message.text.strip()
+    if not is_valid_date(date):
+        await update.message.reply_text("Дата в неверном формате. Попробуйте ещё раз: YYYY-MM-DD")
         return CHOOSING_DATE
 
+    context.user_data["date"] = date
+    slots = DEFAULT_SLOTS[:]
     await update.message.reply_text(format_slots_table(slots), parse_mode="Markdown")
-    markup = ReplyKeyboardMarkup([[slot] for slot in slots], one_time_keyboard=True)
+
+    markup = ReplyKeyboardMarkup([[slot] for slot in slots], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Выберите время:", reply_markup=markup)
     return CHOOSING_TIME
 
-# Выбор времени
+
 async def choose_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["time"] = update.message.text
+    time = update.message.text.strip()
+    if time not in DEFAULT_SLOTS:
+        await update.message.reply_text("Такого слота нет. Выберите из списка.")
+        return CHOOSING_TIME
+
+    context.user_data["time"] = time
     await update.message.reply_text("Введите ваше имя:", reply_markup=ReplyKeyboardRemove())
     return ENTER_NAME
 
-# Ввод имени
+
 async def enter_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["name"] = update.message.text
-    await update.message.reply_text("Введите ваш телефон:")
+    name = update.message.text.strip()
+    if not name:
+        await update.message.reply_text("Имя не может быть пустым. Введите ваше имя:")
+        return ENTER_NAME
+
+    context.user_data["name"] = name
+    await update.message.reply_text("Введите ваш телефон (например, +37120000000):")
     return ENTER_PHONE
 
-# Ввод телефона и создание записи
+
 async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["phone"] = update.message.text
+    phone = update.message.text.strip()
+    if not phone:
+        await update.message.reply_text("Телефон не может быть пустым. Введите ваш телефон:")
+        return ENTER_PHONE
+
+    context.user_data["phone"] = phone
     telegram_id = update.effective_user.id
 
-    user_payload = {
-        "telegram_id": telegram_id,
-        "name": context.user_data["name"],
-        "phone": context.user_data["phone"],
-        "role": "user"
-    }
-
     try:
-        r = requests.get(f"{API_URL}/users/{telegram_id}")
-        if r.status_code == 200:
-            user_id = r.json()["id"]
-        else:
-            r = requests.post(f"{API_URL}/users", json=user_payload)
-            r.raise_for_status()
-            user_id = r.json()["id"]
-    except Exception as e:
-        logging.error(f"Ошибка при регистрации пользователя: {e}")
-        await update.message.reply_text("Ошибка при регистрации. Попробуйте позже.")
-        return ConversationHandler.END
+        r = api_get(f"/users/{telegram_id}")
+        user_id = r.json().get("id")
+    except Exception:
+        try:
+            payload = {
+                "telegram_id": telegram_id,
+                "name": context.user_data["name"],
+                "phone": context.user_data["phone"],
+                "role": "user"
+            }
+            r = api_post("/users", json=payload)
+            user_id = r.json().get("id")
+        except Exception as e:
+            logger.error(f"Ошибка при регистрации пользователя: {e}")
+            await update.message.reply_text("Ошибка при регистрации. Попробуйте позже.")
+            return ConversationHandler.END
 
     booking_payload = {
         "user_id": user_id,
@@ -126,7 +161,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        r = requests.post(f"{API_URL}/bookings", json=booking_payload)
+        r = requests.post(f"{API_URL}/bookings", json=booking_payload, timeout=10)
         if r.status_code == 201:
             await update.message.reply_text("✅ Вы успешно записаны!")
             keyboard = InlineKeyboardMarkup([
@@ -134,67 +169,73 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
             await update.message.reply_text("Что дальше?", reply_markup=keyboard)
         else:
-            await update.message.reply_text(f"Ошибка: {r.json().get('error')}")
+            err = r.json().get("error") if r.headers.get("content-type", "").startswith("application/json") else r.text
+            await update.message.reply_text(f"Ошибка: {err or 'Не удалось создать запись'}")
     except Exception as e:
-        logging.error(f"Ошибка при создании записи: {e}")
+        logger.error(f"Ошибка при создании записи: {e}")
         await update.message.reply_text("Ошибка при бронировании. Попробуйте позже.")
+
     return ConversationHandler.END
 
-# /cancel
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Запись отменена. Напишите /book, чтобы начать заново.")
-    return ConversationHandler.END
 
-# /mybookings и inline-кнопка
+async def send_bookings(chat_id: int, telegram_id: int, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        r = api_get(f"/bookings/by-user/{telegram_id}")
+        bookings = r.json()
+        if not isinstance(bookings, list) or not bookings:
+            await context.bot.send_message(chat_id, "У вас нет записей.")
+            return
+
+        for b in bookings:
+            text = f"📅 {b.get('date')} в {b.get('time')}"
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Удалить", callback_data=f"delete:{b.get('id')}")]
+            ])
+            await context.bot.send_message(chat_id, text, reply_markup=keyboard)
+    except Exception as e:
+        logger.error(f"Ошибка при получении записей: {e}")
+        await context.bot.send_message(chat_id, "Ошибка при получении записей. Попробуйте позже.")
+
+
 async def my_bookings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
-    try:
-        r = requests.get(f"{API_URL}/users/{telegram_id}")
-        if r.status_code != 200:
-            await update.message.reply_text("Вы не зарегистрированы.")
-            return
+    chat_id = update.effective_chat.id
+    await send_bookings(chat_id, telegram_id, context)
 
-        user_id = r.json()["id"]
-        r = requests.get(f"{API_URL}/bookings", params={"user_id": user_id})
-        bookings = r.json()
-        if not bookings:
-            await update.message.reply_text("У вас нет записей.")
-            return
 
-        for booking in bookings:
-            text = f"📅 {booking['date']} в {booking['time']}"
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Удалить", callback_data=f"delete:{booking['id']}")]
-            ])
-            await update.message.reply_text(text, reply_markup=keyboard)
-    except Exception as e:
-        logging.error(f"Ошибка при получении записей: {e}")
-        await update.message.reply_text("Ошибка при получении записей. Попробуйте позже.")
-
-# Обработчик inline-кнопки "Мои записи"
 async def show_bookings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await my_bookings(update, context)
+    query = update.callback_query
+    await query.answer()
+    telegram_id = query.from_user.id
+    chat_id = query.message.chat_id
+    await send_bookings(chat_id, telegram_id, context)
 
-# Обработчик кнопки удаления
+
 async def delete_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     booking_id = query.data.split(":")[1]
 
     try:
-        r = requests.delete(f"{API_URL}/bookings/{booking_id}")
+        r = api_delete(f"/bookings/{booking_id}")
         if r.status_code == 200:
             await query.edit_message_text("✅ Запись удалена.")
         else:
             await query.edit_message_text("❌ Ошибка при удалении.")
     except Exception as e:
-        logging.error(f"Ошибка при удалении записи: {e}")
+        logger.error(f"Ошибка при удалении записи: {e}")
         await query.edit_message_text("❌ Ошибка при удалении.")
 
-# Запуск
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Запись отменена. Напишите /book, чтобы начать заново.")
+    return ConversationHandler.END
+
+
 def main():
-    print("Бот запускается...")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    token = BOT_TOKEN  # используем напрямую
+    logger.info("Бот запускается...")
+    app = ApplicationBuilder().token(token).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("book", book)],
@@ -207,12 +248,18 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
+    # Основные команды
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("mybookings", my_bookings))
+
+    # Inline‑кнопки
     app.add_handler(CallbackQueryHandler(delete_booking, pattern=r"^delete:\d+$"))
-    app.add_handler(CallbackQueryHandler(show_bookings_callback, pattern="^show_bookings$"))
+    app.add_handler(CallbackQueryHandler(show_bookings_callback, pattern=r"^show_bookings$"))
+
+    # Диалог бронирования
     app.add_handler(conv_handler)
+
+    # Запуск бота
     app.run_polling()
 
-if __name__ == "__main__":
-    main()
+
