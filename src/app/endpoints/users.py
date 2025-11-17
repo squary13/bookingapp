@@ -1,12 +1,10 @@
 import json
-import os
 from workers import Request, Response  # type: ignore
 from urllib.parse import urlsplit, parse_qs
 from app.router import route, json_body
 from app.db import d1_run, d1_first, d1_all
 from typing import Callable, Any
 from datetime import datetime, timedelta
-from pathlib import Path
 
 def respond_json(data, status=200):
     return Response(json.dumps(data), status=status, headers={
@@ -25,37 +23,6 @@ def get_query_param(req: Request, name: str, required: bool = False, cast: Calla
         return cast(value) if value is not None else None
     except Exception:
         raise ValueError(f"Invalid value for query parameter '{name}': {value}")
-
-def serve_static(filename: str) -> Response:
-    base_dir = os.path.dirname(__file__)
-    path = os.path.abspath(os.path.join(base_dir, "..", "..", "mini-app", filename))
-
-    # 🔍 Диагностика путей
-    print(f"📁 __file__: {__file__}")
-    print(f"📁 base_dir: {base_dir}")
-    print(f"📁 full path: {path}")
-
-    if not os.path.exists(path):
-        print("❌ File not found!")
-        return Response("File not found", status=404)
-
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    ext = os.path.splitext(filename)[1]
-    mime = {
-        ".html": "text/html",
-        ".js": "application/javascript",
-        ".css": "text/css",
-        ".json": "application/json",
-        ".svg": "image/svg+xml"
-    }.get(ext, "text/plain")
-
-    if mime.startswith("text/") or mime == "application/javascript":
-        mime += "; charset=utf-8"
-
-    return Response(content, status=200, headers={"Content-Type": mime})
-
 
 @route("OPTIONS", "/{any}")
 async def options_all(req: Request, any: str):
@@ -149,7 +116,6 @@ async def generate_slots(req: Request):
     dates = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
     times = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"]
 
-    # Получаем user_id админа (можно заменить на фиксированный ID)
     admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
     if not admin:
         return respond_json({"error": "Нет администратора"}, status=400)
@@ -158,22 +124,9 @@ async def generate_slots(req: Request):
     count = 0
     for date in dates:
         if datetime.strptime(date, "%Y-%m-%d").weekday() >= 5:
-            continue  # пропускаем выходные
+            continue
         for time in times:
             await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
             count += 1
 
     return respond_json({"ok": True, "generated": count})
-
-# STATIC ROUTES
-
-@route("GET", "/admin")
-async def serve_admin(req: Request):
-    token = get_query_param(req, "key")
-    if token != "adminsecret":
-        return Response("Unauthorized", status=403)
-    return serve_static("admin.html")
-
-@route("GET", "/admin.js")
-async def serve_admin_js(req: Request):
-    return serve_static("admin.js")

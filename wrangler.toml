@@ -12,6 +12,6 @@ MESSAGE = "CUSTOM_ENV_VARIABLE_MESSAGE"
 enabled = true
 
 [[d1_databases]]
-binding = "DB"                  
-database_name = "booking-db"     
+binding = "DB"
+database_name = "booking-db"
 database_id = "392dd2e1-3b69-4fa4-8408-10ecee89bb54"
