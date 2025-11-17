@@ -15,3 +15,9 @@ enabled = true
 binding = "DB"
 database_name = "booking-db"
 database_id = "392dd2e1-3b69-4fa4-8408-10ecee89bb54"
+
+app.use("*", async (c, next) => {
+  c.header("Access-Control-Allow-Origin", "*");
+  await next();
+});
+

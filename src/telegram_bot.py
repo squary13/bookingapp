@@ -42,9 +42,16 @@ def is_valid_date(date_str: str) -> bool:
 # === API HELPERS ===
 def api_get(path: str, params: dict | None = None):
     url = f"{API_URL}{path}"
-    r = requests.get(url, params=params, timeout=10)
-    r.raise_for_status()
-    return r
+    print(f"GET → {url}")
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        print(f"Status: {r.status_code}, Body: {r.text}")
+        r.raise_for_status()
+        return r
+    except Exception as e:
+        print(f"❌ API GET error: {e}")
+        raise
+
 
 
 def api_post(path: str, json: dict):
