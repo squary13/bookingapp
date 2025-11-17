@@ -16,7 +16,7 @@ from telegram.ext import (
 )
 
 # === CONFIG ===
-API_URL = "https://booking-worker-py-be.workers.dev/api"  # PROD backend base
+API_URL = "https://booking-worker-py-be.squary50.workers.dev/api"  # PROD backend base
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7364112514:AAGi4LAVefHuljYgSIPbxvQK-Kvs_yvW4Tk")
 
 CHOOSING_DATE, CHOOSING_TIME, ENTER_NAME, ENTER_PHONE = range(4)
@@ -261,5 +261,8 @@ def main():
 
     # Запуск бота
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
 
 
