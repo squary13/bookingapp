@@ -3,18 +3,15 @@ from app.router import match, split_url, respond_json
 from app.swagger import swagger_page, openapi_json
 import traceback
 
-# Import endpoints to register them (side-effect of @route)
+# Импорт эндпоинтов (через @route)
 from app.endpoints import meta, users  # noqa: F401
 
 def respond_error(status: int, msg: str = "Internal Server Error") -> Response:
-    return Response(
+    return wrap_with_cors(Response(
         f'{{"error":"{msg}"}}',
         status=status,
-        headers={
-            "content-type": "application/json; charset=utf-8",
-            "Access-Control-Allow-Origin": "*"
-        },
-    )
+        headers={"content-type": "application/json; charset=utf-8"},
+    ))
 
 def respond_cors_preflight() -> Response:
     return Response(
@@ -56,17 +53,14 @@ class Default(WorkerEntrypoint):
             path, _query = split_url(request)
             method = request.method
 
-            # CORS preflight
             if method == "OPTIONS":
                 return respond_cors_preflight()
 
-            # Swagger docs
             if path == "/" or path == "/docs":
                 return wrap_with_cors(swagger_page())
             if path == "/openapi.json":
                 return wrap_with_cors(openapi_json())
 
-            # Route matching
             handler, params, _ = match(method, path)
             if not handler:
                 return wrap_with_cors(Response("Not found", status=404))
