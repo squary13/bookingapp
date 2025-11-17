@@ -10,16 +10,34 @@ def respond_error(status: int, msg: str = "Internal Server Error") -> Response:
     return Response(
         f'{{"error":"{msg}"}}',
         status=status,
-        headers={"content-type": "application/json; charset=utf-8"},
+        headers={
+            "content-type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*"
+        },
     )
+
+def respond_cors_preflight() -> Response:
+    return Response(
+        "",
+        status=204,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
+def wrap_with_cors(response: Response) -> Response:
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
-        # Make sure handlers can read env via req.scope["env"]
         try:
             if not isinstance(getattr(request, "scope", None), dict):
                 request.scope = {}
             request.scope["env"] = self.env
+
             try:
                 db = self.env.DB
                 stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
@@ -31,29 +49,32 @@ class Default(WorkerEntrypoint):
             print("✅ Injecting env into scope:", self.env.DB)
             print("✅ Final scope:", request.scope)
 
-
-
         except Exception:
-            # If even injecting fails, return 500 rather than throwing 1101
             return respond_error(500)
 
         try:
             path, _query = split_url(request)
             method = request.method
 
-            if path == "/" or path == "/docs":
-                return swagger_page()
-            if path == "/openapi.json":
-                return openapi_json()
+            # CORS preflight
+            if method == "OPTIONS":
+                return respond_cors_preflight()
 
+            # Swagger docs
+            if path == "/" or path == "/docs":
+                return wrap_with_cors(swagger_page())
+            if path == "/openapi.json":
+                return wrap_with_cors(openapi_json())
+
+            # Route matching
             handler, params, _ = match(method, path)
             if not handler:
-                return Response("Not found", status=404)
+                return wrap_with_cors(Response("Not found", status=404))
 
             result = await handler(request, **(params or {}))
             if isinstance(result, Response):
-                return result
-            return respond_json(result)
+                return wrap_with_cors(result)
+            return wrap_with_cors(respond_json(result))
 
         except Exception as e:
             print("UNHANDLED ERROR:", e)
