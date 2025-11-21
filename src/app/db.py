@@ -23,7 +23,6 @@ async def d1_run(req: Request, sql: str, *params):
     Some drivers support `.run()`. If not present, `.all()` still executes.
     """
     env = get_env(req)
-    env = get_env(req)
     print("🔍 env in create_user:", env)
     print("🔍 env.DB in create_user:", getattr(env, "DB", None))
 
