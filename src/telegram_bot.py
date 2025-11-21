@@ -198,6 +198,7 @@ def main():
             ENTER_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_phone)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        per_message=True
     )
 
     app.add_handler(CommandHandler("start", start))
