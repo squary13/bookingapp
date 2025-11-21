@@ -135,3 +135,28 @@ async def generate_slots(req: Request):
             count += 1
 
     return respond_json({"ok": True, "generated": count})
+
+@route("POST", "/api/bookings")
+async def create_booking(req: Request):
+    data = await json_body(req) or {}
+    user_id = data.get("user_id")
+    date = data.get("date")
+    time = data.get("time")
+
+    if user_id is None or date is None or time is None:
+        return respond_json({"error": "All fields are required"}, status=400)
+
+    # Проверка существования пользователя
+    user = await d1_first(req, "SELECT id FROM users WHERE id = ?", user_id)
+    if not user:
+        return respond_json({"error": "User not found"}, status=404)
+
+    # Проверка на дубликат записи
+    existing = await d1_first(req, "SELECT id FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
+    if existing:
+        return respond_json({"error": "Booking already exists"}, status=400)
+
+    # Создание записи
+    await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
+    row = await d1_first(req, "SELECT id, user_id, date, time FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
+    return respond_json(row.to_py(), status=201)
