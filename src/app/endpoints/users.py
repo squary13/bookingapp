@@ -32,7 +32,7 @@ async def options_all(req: Request, any: str):
         "Access-Control-Allow-Headers": "Content-Type"
     })
 
-# USERS
+# ---------------- USERS ----------------
 
 @route("GET", "/api/users")
 async def list_or_query_users(req: Request):
@@ -103,3 +103,110 @@ async def delete_user(req: Request, telegram_id: int):
     await d1_run(req, "DELETE FROM bookings WHERE user_id = ?", user_id)
     await d1_run(req, "DELETE FROM users WHERE id = ?", user_id)
     return respond_json({"ok": True}, status=200)
+
+# ---------------- BOOKINGS ----------------
+
+@route("GET", "/api/bookings/by-user/{telegram_id}")
+async def get_bookings_by_telegram(req: Request, telegram_id: int):
+    user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
+    if not user:
+        return respond_json({"error": "User not found"}, status=404)
+    user_id = user.to_py()["id"]
+    rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date DESC, time DESC", user_id)
+    return respond_json([row.to_py() for row in rows])
+
+@route("POST", "/api/bookings")
+async def create_booking(req: Request):
+    data = await json_body(req) or {}
+    user_id = data.get("user_id")
+    date = data.get("date")
+    time = data.get("time")
+
+    if user_id is None or date is None or time is None:
+        return respond_json({"error": "All fields are required"}, status=400)
+
+    user = await d1_first(req, "SELECT id FROM users WHERE id = ?", user_id)
+    if not user:
+        return respond_json({"error": "User not found"}, status=404)
+
+    existing = await d1_first(req, "SELECT id FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
+    if existing:
+        return respond_json({"error": "Booking already exists"}, status=400)
+
+    await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
+    row = await d1_first(req, "SELECT id, user_id, date, time FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
+    return respond_json(row.to_py(), status=201)
+
+@route("DELETE", "/api/bookings/{id}")
+async def delete_booking(req: Request, id: int):
+    existing = await d1_first(req, "SELECT id FROM bookings WHERE id = ?", id)
+    if not existing:
+        return respond_json({"error": "Booking not found"}, status=404)
+    await d1_run(req, "DELETE FROM bookings WHERE id = ?", id)
+    return respond_json({"ok": True}, status=200)
+
+# ---------------- DATES ----------------
+
+@route("GET", "/api/available-dates")
+async def get_available_dates(req: Request):
+    # Возвращаем уникальные даты, где есть хоть одна запись
+    rows = await d1_all(req, "SELECT DISTINCT date FROM bookings ORDER BY date ASC")
+    # D1 возвращает объекты с .to_py(), но на всякий случай поддержим словари
+    def get_date(row):
+        return row.to_py()["date"] if hasattr(row, "to_py") else row["date"]
+    dates = [get_date(row) for row in rows]
+    return respond_json({"dates": dates})
+
+
+@route("POST", "/api/generate-slots")
+async def generate_slots(req: Request):
+    # Параметры генерации (необязательные): дней вперёд и список слотов
+    body = await json_body(req) or {}
+    days_ahead = int(body.get("days", 30))  # по умолчанию 30 дней
+    times = body.get("times") or ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"]
+
+    today = datetime.today()
+    dates = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_ahead)]
+
+    # Нужен админ — слоты создаются на него, чтобы отличать админские открытия
+    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
+    if not admin:
+        return respond_json({"error": "Нет администратора"}, status=400)
+    user_id = admin.to_py()["id"] if hasattr(admin, "to_py") else admin["id"]
+
+    generated = 0
+    skipped_weekend = 0
+    skipped_existing = 0
+
+    for date in dates:
+        # Пропускаем выходные (суббота/воскресенье)
+        if datetime.strptime(date, "%Y-%m-%d").weekday() >= 5:
+            skipped_weekend += 1
+            continue
+
+        for time in times:
+            # Защита от дублей: если уже есть запись (для любого пользователя), не добавляем
+            exists = await d1_first(
+                req,
+                "SELECT id FROM bookings WHERE date = ? AND time = ?",
+                date, time
+            )
+            if exists:
+                skipped_existing += 1
+                continue
+
+            await d1_run(
+                req,
+                "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)",
+                user_id, date, time
+            )
+            generated += 1
+
+    return respond_json({
+        "ok": True,
+        "generated": generated,
+        "skipped_weekend_days": skipped_weekend,
+        "skipped_existing_slots": skipped_existing,
+        "days_considered": days_ahead,
+        "times_used": times
+    }, status=200)
