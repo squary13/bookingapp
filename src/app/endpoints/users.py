@@ -225,3 +225,18 @@ async def generate_slots(req: Request):
         "days_considered": days_ahead,
         "times_used": times
     }, status=200)
+
+@route("PUT", "/api/bookings/{id}/free")
+async def free_booking(req: Request, id: int):
+    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
+    if not admin:
+        return respond_json({"error": "No admin found"}, status=400)
+    admin_id = admin.to_py()["id"]
+
+    existing = await d1_first(req, "SELECT id FROM bookings WHERE id = ?", id)
+    if not existing:
+        return respond_json({"error": "Booking not found"}, status=404)
+
+    await d1_run(req, "UPDATE bookings SET user_id = ? WHERE id = ?", admin_id, id)
+    row = await d1_first(req, "SELECT id, user_id, date, time FROM bookings WHERE id = ?", id)
+    return respond_json(row.to_py(), status=200)
