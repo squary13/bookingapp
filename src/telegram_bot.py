@@ -144,21 +144,27 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
 
     try:
-        # Ищем пользователя по telegram_id
+        # Сначала ищем по telegram_id
         r = api_get("/users", params={"telegram_id": telegram_id})
         users = r.json()
         if isinstance(users, list) and users:
             user_id = users[0]["id"]
         else:
-            # Если не найден — создаём нового
-            payload = {
-                "telegram_id": telegram_id,
-                "name": context.user_data["name"],
-                "phone": context.user_data["phone"],
-                "role": "user"
-            }
-            r = api_post("/users", json=payload)
-            user_id = r.json().get("id")
+            # Если не найден — ищем по phone
+            r = api_get("/users", params={"phone": phone})
+            users = r.json()
+            if isinstance(users, list) and users:
+                user_id = users[0]["id"]
+            else:
+                # Если вообще не найден — создаём нового
+                payload = {
+                    "telegram_id": telegram_id,
+                    "name": context.user_data["name"],
+                    "phone": phone,
+                    "role": "user"
+                }
+                r = api_post("/users", json=payload)
+                user_id = r.json().get("id")
     except Exception as e:
         logger.error(f"Ошибка при получении/создании пользователя: {e}")
         await update.message.reply_text("Ошибка при регистрации. Попробуйте позже.")
@@ -186,6 +192,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Ошибка при бронировании. Попробуйте позже.")
 
     return ConversationHandler.END
+
 
 
 

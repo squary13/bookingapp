@@ -55,12 +55,17 @@ async def create_user(req: Request):
     role = data.get("role")
     if telegram_id is None or phone is None or name is None or role is None:
         return respond_json({"error": "All fields are required"}, status=400)
-    exists = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ? OR phone = ?", telegram_id, phone)
-    if exists:
-        return respond_json({"error": "User with this telegram_id or phone already exists"}, status=400)
+
+    # Ищем существующего пользователя
+    existing = await d1_first(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE telegram_id = ? OR phone = ?", telegram_id, phone)
+    if existing:
+        return respond_json(existing.to_py(), status=200)
+
+    # Создаём нового
     await d1_run(req, "INSERT INTO users (telegram_id, phone, name, role) VALUES (?, ?, ?, ?)", telegram_id, phone, name, role)
     row = await d1_first(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE telegram_id = ?", telegram_id)
     return respond_json(row.to_py(), status=201)
+
 
 @route("PUT", "/api/users/{id}")
 async def update_user(req: Request, id: str):
