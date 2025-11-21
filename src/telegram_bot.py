@@ -79,6 +79,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = user.id
     web_app_url = f"https://booking-working-app-fe.pages.dev/?name={encoded_name}&user_id={telegram_id}"
 
+
     keyboard = ReplyKeyboardMarkup(
         [[KeyboardButton("📲 Открыть мини-приложение", web_app=WebAppInfo(url=web_app_url))]],
         resize_keyboard=True
