@@ -1,7 +1,7 @@
 from workers import WorkerEntrypoint, Request, Response  # type: ignore
 from app.router import match, split_url, respond_json
 from app.swagger import swagger_page, openapi_json
-from app.endpoints import meta, users, bookings
+from app.endpoints import meta, users
 import traceback
 
 # Импорт эндпоинтов (через @route)
