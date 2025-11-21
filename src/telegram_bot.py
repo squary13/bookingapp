@@ -109,7 +109,10 @@ async def choose_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         r = api_get("/bookings/by-user/1000")
         all_slots = r.json()
-        slots = [s["time"] for s in all_slots if s["date"] == date and str(s["user_id"]) == "6"]
+        if not isinstance(all_slots, list):
+            raise ValueError("Ответ API не является списком")
+
+        slots = [s["time"] for s in all_slots if s.get("date") == date and str(s.get("user_id")) == "6"]
     except Exception as e:
         logger.error(f"Ошибка при получении слотов: {e}")
         await update.message.reply_text("❌ Не удалось загрузить слоты. Попробуйте позже.")
@@ -124,17 +127,17 @@ async def choose_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Выберите время:", reply_markup=markup)
     return CHOOSING_TIME
 
-
-
 async def choose_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time = update.message.text.strip()
-    if time not in DEFAULT_SLOTS:
+    available = context.user_data.get("available_slots", [])
+    if time not in available:
         await update.message.reply_text("Такого слота нет. Выберите из списка.")
         return CHOOSING_TIME
 
     context.user_data["time"] = time
     await update.message.reply_text("Введите ваше имя:", reply_markup=ReplyKeyboardRemove())
     return ENTER_NAME
+
 
 
 async def enter_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
