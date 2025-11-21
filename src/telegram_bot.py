@@ -144,10 +144,13 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
 
     try:
-        r = api_get(f"/users/{telegram_id}")
-        user_id = r.json().get("id")
-    except Exception:
-        try:
+        # Ищем пользователя по telegram_id
+        r = api_get("/users", params={"telegram_id": telegram_id})
+        users = r.json()
+        if isinstance(users, list) and users:
+            user_id = users[0]["id"]
+        else:
+            # Если не найден — создаём нового
             payload = {
                 "telegram_id": telegram_id,
                 "name": context.user_data["name"],
@@ -156,10 +159,10 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             r = api_post("/users", json=payload)
             user_id = r.json().get("id")
-        except Exception as e:
-            logger.error(f"Ошибка при регистрации пользователя: {e}")
-            await update.message.reply_text("Ошибка при регистрации. Попробуйте позже.")
-            return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"Ошибка при получении/создании пользователя: {e}")
+        await update.message.reply_text("Ошибка при регистрации. Попробуйте позже.")
+        return ConversationHandler.END
 
     booking_payload = {
         "user_id": user_id,
@@ -183,6 +186,7 @@ async def enter_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Ошибка при бронировании. Попробуйте позже.")
 
     return ConversationHandler.END
+
 
 
 async def send_bookings(chat_id: int, telegram_id: int, context: ContextTypes.DEFAULT_TYPE):
