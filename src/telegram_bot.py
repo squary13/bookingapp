@@ -105,12 +105,25 @@ async def choose_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CHOOSING_DATE
 
     context.user_data["date"] = date
-    slots = DEFAULT_SLOTS[:]
-    await update.message.reply_text(format_slots_table(slots), parse_mode="Markdown")
 
+    try:
+        r = api_get("/bookings/by-user/1000")
+        all_slots = r.json()
+        slots = [s["time"] for s in all_slots if s["date"] == date and str(s["user_id"]) == "6"]
+    except Exception as e:
+        logger.error(f"Ошибка при получении слотов: {e}")
+        await update.message.reply_text("❌ Не удалось загрузить слоты. Попробуйте позже.")
+        return ConversationHandler.END
+
+    if not slots:
+        await update.message.reply_text("⚠️ На выбранную дату нет свободных слотов.")
+        return ConversationHandler.END
+
+    await update.message.reply_text(format_slots_table(slots), parse_mode="Markdown")
     markup = ReplyKeyboardMarkup([[slot] for slot in slots], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Выберите время:", reply_markup=markup)
     return CHOOSING_TIME
+
 
 
 async def choose_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
