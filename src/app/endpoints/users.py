@@ -125,17 +125,32 @@ async def create_booking(req: Request):
     if user_id is None or date is None or time is None:
         return respond_json({"error": "All fields are required"}, status=400)
 
+    # Проверка существования пользователя
     user = await d1_first(req, "SELECT id FROM users WHERE id = ?", user_id)
     if not user:
         return respond_json({"error": "User not found"}, status=404)
 
-    existing = await d1_first(req, "SELECT id FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
-    if existing:
-        return respond_json({"error": "Booking already exists"}, status=400)
+    # Ищем свободный слот (у админа)
+    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
+    if not admin:
+        return respond_json({"error": "No admin found"}, status=400)
+    admin_id = admin.to_py()["id"] if hasattr(admin, "to_py") else admin["id"]
 
-    await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
-    row = await d1_first(req, "SELECT id, user_id, date, time FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
-    return respond_json(row.to_py(), status=201)
+    slot = await d1_first(
+        req,
+        "SELECT id FROM bookings WHERE user_id = ? AND date = ? AND time = ?",
+        admin_id, date, time
+    )
+    if not slot:
+        return respond_json({"error": "Slot not available"}, status=404)
+
+    # Обновляем слот: назначаем его пользователю
+    await d1_run(req, "UPDATE bookings SET user_id = ? WHERE id = ?", user_id, slot.to_py()["id"])
+
+    # Возвращаем обновлённую запись
+    row = await d1_first(req, "SELECT id, user_id, date, time FROM bookings WHERE id = ?", slot.to_py()["id"])
+    return respond_json(row.to_py(), status=200)
+
 
 @route("DELETE", "/api/bookings/{id}")
 async def delete_booking(req: Request, id: int):
