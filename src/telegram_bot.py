@@ -107,7 +107,7 @@ async def choose_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["date"] = date
 
     try:
-        r = api_get("/bookings/by-user/1000")
+        r = api_get("/bookings/by-user/6")
         all_slots = r.json()
         if not isinstance(all_slots, list):
             raise ValueError("Ответ API не является списком")
