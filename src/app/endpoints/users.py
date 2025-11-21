@@ -35,8 +35,15 @@ async def options_all(req: Request, any: str):
 # USERS
 
 @route("GET", "/api/users")
-async def list_users(req: Request):
-    rows = await d1_all(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users ORDER BY id DESC")
+async def list_or_query_users(req: Request):
+    telegram_id = get_query_param(req, "telegram_id")
+    phone = get_query_param(req, "phone")
+    if telegram_id:
+        rows = await d1_all(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE telegram_id = ?", telegram_id)
+    elif phone:
+        rows = await d1_all(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE phone = ?", phone)
+    else:
+        rows = await d1_all(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users ORDER BY id DESC")
     return respond_json([row.to_py() for row in rows])
 
 @route("GET", "/api/users/{telegram_id}")
@@ -56,16 +63,13 @@ async def create_user(req: Request):
     if telegram_id is None or phone is None or name is None or role is None:
         return respond_json({"error": "All fields are required"}, status=400)
 
-    # Ищем существующего пользователя
     existing = await d1_first(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE telegram_id = ? OR phone = ?", telegram_id, phone)
     if existing:
         return respond_json(existing.to_py(), status=200)
 
-    # Создаём нового
     await d1_run(req, "INSERT INTO users (telegram_id, phone, name, role) VALUES (?, ?, ?, ?)", telegram_id, phone, name, role)
     row = await d1_first(req, "SELECT id, telegram_id, phone, name, role, created_at FROM users WHERE telegram_id = ?", telegram_id)
     return respond_json(row.to_py(), status=201)
-
 
 @route("PUT", "/api/users/{id}")
 async def update_user(req: Request, id: str):
@@ -99,64 +103,3 @@ async def delete_user(req: Request, telegram_id: int):
     await d1_run(req, "DELETE FROM bookings WHERE user_id = ?", user_id)
     await d1_run(req, "DELETE FROM users WHERE id = ?", user_id)
     return respond_json({"ok": True}, status=200)
-
-@route("GET", "/api/bookings/by-user/{telegram_id}")
-async def get_bookings_by_telegram(req: Request, telegram_id: int):
-    user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
-    if not user:
-        return respond_json({"error": "User not found"}, status=404)
-    user_id = user.to_py()["id"]
-    rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date DESC, time DESC", user_id)
-    return respond_json([row.to_py() for row in rows])
-
-@route("GET", "/api/available-dates")
-async def get_available_dates(req: Request):
-    rows = await d1_all(req, "SELECT DISTINCT date FROM bookings ORDER BY date ASC")
-    dates = [row.to_py()["date"] for row in rows]
-    return respond_json({"dates": dates})
-
-@route("POST", "/api/generate-slots")
-async def generate_slots(req: Request):
-    today = datetime.today()
-    dates = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(30)]
-    times = ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"]
-
-    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
-    if not admin:
-        return respond_json({"error": "Нет администратора"}, status=400)
-    user_id = admin.to_py()["id"]
-
-    count = 0
-    for date in dates:
-        if datetime.strptime(date, "%Y-%m-%d").weekday() >= 5:
-            continue
-        for time in times:
-            await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
-            count += 1
-
-    return respond_json({"ok": True, "generated": count})
-
-@route("POST", "/api/bookings")
-async def create_booking(req: Request):
-    data = await json_body(req) or {}
-    user_id = data.get("user_id")
-    date = data.get("date")
-    time = data.get("time")
-
-    if user_id is None or date is None or time is None:
-        return respond_json({"error": "All fields are required"}, status=400)
-
-    # Проверка существования пользователя
-    user = await d1_first(req, "SELECT id FROM users WHERE id = ?", user_id)
-    if not user:
-        return respond_json({"error": "User not found"}, status=404)
-
-    # Проверка на дубликат записи
-    existing = await d1_first(req, "SELECT id FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
-    if existing:
-        return respond_json({"error": "Booking already exists"}, status=400)
-
-    # Создание записи
-    await d1_run(req, "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)", user_id, date, time)
-    row = await d1_first(req, "SELECT id, user_id, date, time FROM bookings WHERE user_id = ? AND date = ? AND time = ?", user_id, date, time)
-    return respond_json(row.to_py(), status=201)
