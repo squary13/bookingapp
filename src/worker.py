@@ -27,7 +27,10 @@ def respond_cors_preflight() -> Response:
 
 def wrap_with_cors(response: Response) -> Response:
     response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
+
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
