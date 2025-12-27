@@ -110,10 +110,15 @@ async def delete_user(req: Request, telegram_id: int):
 async def get_bookings_by_telegram(req: Request, telegram_id: int):
     user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
     if not user:
-        return respond_json({"error": "User not found"}, status=404)
+        # создаём нового пользователя
+        await d1_exec(req, "INSERT INTO users (telegram_id, name, phone, role) VALUES (?, ?, ?, ?)",
+                      telegram_id, "Без имени", "00000000", "user")
+        user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
+
     user_id = user.to_py()["id"]
     rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date DESC, time DESC", user_id)
     return respond_json([row.to_py() for row in rows])
+
 
 @route("POST", "/api/bookings")
 async def create_booking(req: Request):
