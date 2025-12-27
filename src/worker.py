@@ -1,11 +1,17 @@
 from workers import WorkerEntrypoint, Request, Response  # type: ignore
 from app.router import match, split_url, respond_json
 from app.swagger import swagger_page, openapi_json
-from app.endpoints import meta, users
 import traceback
 
 # Импорт эндпоинтов (через @route)
 from app.endpoints import meta, users  # noqa: F401
+
+# 🔧 Общие CORS заголовки
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+}
 
 def respond_error(status: int, msg: str = "Internal Server Error") -> Response:
     return wrap_with_cors(Response(
@@ -18,19 +24,14 @@ def respond_cors_preflight() -> Response:
     return Response(
         "",
         status=204,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        },
+        headers=CORS_HEADERS,
     )
 
 def wrap_with_cors(response: Response) -> Response:
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    # Добавляем все нужные заголовки
+    for k, v in CORS_HEADERS.items():
+        response.headers[k] = v
     return response
-
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
@@ -39,6 +40,7 @@ class Default(WorkerEntrypoint):
                 request.scope = {}
             request.scope["env"] = self.env
 
+            # Проверка базы (для отладки)
             try:
                 db = self.env.DB
                 stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
@@ -47,9 +49,6 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 print("❌ DB access failed:", e)
 
-            print("✅ Injecting env into scope:", self.env.DB)
-            print("✅ Final scope:", request.scope)
-
         except Exception:
             return respond_error(500)
 
@@ -57,6 +56,7 @@ class Default(WorkerEntrypoint):
             path, _query = split_url(request)
             method = request.method
 
+            # ⚙️ Обработка preflight
             if method == "OPTIONS":
                 return respond_cors_preflight()
 
