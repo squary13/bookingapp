@@ -175,47 +175,48 @@ async def get_available_dates(req: Request):
 
 @route("POST", "/api/generate-slots")
 async def generate_slots(req: Request):
-    # Параметры генерации (необязательные): дней вперёд и список слотов
-    body = await json_body(req) or {}
-    days_ahead = int(body.get("days", 30))  # по умолчанию 30 дней
+    body = json_body(req) or {}
+    date = body.get("date")
     times = body.get("times") or ["10:00", "11:00", "12:00", "14:00", "15:00", "16:00"]
 
-    today = datetime.today()
-    dates = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_ahead)]
+    if not date:
+        return respond_json({"error": "Missing date"}, status=400)
 
-    # Нужен админ — слоты создаются на него, чтобы отличать админские открытия
-    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
+    # Нужен админ
+    admin = await d1_first(req, "SELECT id FROM users WHERE role = 'admin' LIMIT 1")
     if not admin:
         return respond_json({"error": "Нет администратора"}, status=400)
-    user_id = admin.to_py()["id"] if hasattr(admin, "to_py") else admin["id"]
+
+    user_id = admin["id"]
 
     generated = 0
-    skipped_weekend = 0
     skipped_existing = 0
 
-    for date in dates:
-        # Пропускаем выходные (суббота/воскресенье)
-        if datetime.strptime(date, "%Y-%m-%d").weekday() >= 5:
-            skipped_weekend += 1
+    for time in times:
+        exists = await d1_first(
+            req,
+            "SELECT id FROM bookings WHERE date = ? AND time = ?",
+            date, time
+        )
+        if exists:
+            skipped_existing += 1
             continue
 
-        for time in times:
-            # Защита от дублей: если уже есть запись (для любого пользователя), не добавляем
-            exists = await d1_first(
-                req,
-                "SELECT id FROM bookings WHERE date = ? AND time = ?",
-                date, time
-            )
-            if exists:
-                skipped_existing += 1
-                continue
+        await d1_run(
+            req,
+            "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)",
+            user_id, date, time
+        )
+        generated += 1
 
-            await d1_run(
-                req,
-                "INSERT INTO bookings (user_id, date, time) VALUES (?, ?, ?)",
-                user_id, date, time
-            )
-            generated += 1
+    return respond_json({
+        "ok": True,
+        "generated": generated,
+        "skipped_existing_slots": skipped_existing,
+        "date": date,
+        "times_used": times
+    })
+
 
     return respond_json({
         "ok": True,
