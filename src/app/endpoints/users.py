@@ -108,16 +108,31 @@ async def delete_user(req: Request, telegram_id: int):
 
 @route("GET", "/api/bookings/by-user/{telegram_id}")
 async def get_bookings_by_telegram(req: Request, telegram_id: int):
+    # Проверяем, есть ли пользователь
     user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
     if not user:
-        # создаём нового пользователя
-        await d1_exec(req, "INSERT INTO users (telegram_id, name, phone, role) VALUES (?, ?, ?, ?)",
-                      telegram_id, "Без имени", "00000000", "user")
+        # Если нет — создаём нового пользователя с дефолтными данными
+        await d1_run(
+            req,
+            "INSERT INTO users (telegram_id, phone, name, role) VALUES (?, ?, ?, ?)",
+            telegram_id,
+            "00000000",   # дефолтный телефон
+            "Без имени",  # дефолтное имя
+            "user"        # дефолтная роль
+        )
         user = await d1_first(req, "SELECT id FROM users WHERE telegram_id = ?", telegram_id)
 
     user_id = user.to_py()["id"]
-    rows = await d1_all(req, "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date DESC, time DESC", user_id)
+
+    # Загружаем записи пользователя
+    rows = await d1_all(
+        req,
+        "SELECT id, date, time FROM bookings WHERE user_id = ? ORDER BY date DESC, time DESC",
+        user_id
+    )
+
     return respond_json([row.to_py() for row in rows])
+
 
 
 @route("POST", "/api/bookings")

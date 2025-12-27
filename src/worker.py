@@ -2,6 +2,7 @@ from workers import WorkerEntrypoint, Request, Response  # type: ignore
 from app.router import match, split_url, respond_json
 from app.swagger import swagger_page, openapi_json
 import traceback
+import json
 
 # Импорт эндпоинтов (через @route)
 from app.endpoints import meta, users  # noqa: F401
@@ -15,23 +16,25 @@ CORS_HEADERS = {
 
 def respond_error(status: int, msg: str = "Internal Server Error") -> Response:
     return wrap_with_cors(Response(
-        f'{{"error":"{msg}"}}',
+        json.dumps({"error": msg}),
         status=status,
-        headers={"content-type": "application/json; charset=utf-8"},
+        headers={"Content-Type": "application/json; charset=utf-8"},
     ))
 
 def respond_cors_preflight() -> Response:
-    return Response(
-        "",
-        status=204,
-        headers=CORS_HEADERS,
-    )
+    return Response("", status=204, headers=CORS_HEADERS)
 
 def wrap_with_cors(response: Response) -> Response:
-    # Добавляем все нужные заголовки
     for k, v in CORS_HEADERS.items():
         response.headers[k] = v
     return response
+
+def respond_json(data, status: int = 200) -> Response:
+    return wrap_with_cors(Response(
+        json.dumps(data),
+        status=status,
+        headers={"Content-Type": "application/json"}
+    ))
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env):
@@ -72,7 +75,7 @@ class Default(WorkerEntrypoint):
             result = await handler(request, **(params or {}))
             if isinstance(result, Response):
                 return wrap_with_cors(result)
-            return wrap_with_cors(respond_json(result))
+            return respond_json(result)
 
         except Exception as e:
             print("UNHANDLED ERROR:", e)
